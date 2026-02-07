@@ -34,24 +34,16 @@ export function AuthBranding({ scripture }: AuthBrandingProps) {
           </p>
         </div>
 
-        {/* Shepherd Illustration Placeholder */}
+        {/* Shepherd Illustration */}
         <div className="relative w-full aspect-square max-w-sm mx-auto">
           <div className="absolute inset-0 flex items-center justify-center">
-            {/* Placeholder for shepherd image - you can replace this with an actual image */}
-            <div className="w-full h-full rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 flex items-center justify-center border-2 border-blue-200 dark:border-blue-800">
-              <svg
-                className="w-3/4 h-3/4 text-blue-400 dark:text-blue-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
+            <div className="w-full h-full rounded-2xl overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&h=800&fit=crop&q=80"
+                alt="Shepherd leading sheep"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-indigo-600/20 to-purple-600/20 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30" />
             </div>
           </div>
         </div>

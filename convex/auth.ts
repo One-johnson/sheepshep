@@ -91,8 +91,45 @@ export const register = mutation({
 
     // If shepherd, create registration request instead of direct user creation
     if (args.role === "shepherd") {
+      // Check if this is the very first user in the system
+      const existingUsers = await ctx.db.query("users").collect();
+      const isFirstUser = existingUsers.length === 0;
+
+      // If this is the first user, auto-approve and create them as an admin directly
+      if (isFirstUser) {
+        const userId = await ctx.db.insert("users", {
+          email: args.email,
+          name: args.name,
+          role: "admin", // First user becomes admin
+          passwordHash,
+          isActive: true,
+          isFirstAdmin: true, // Mark as first admin
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          phone: args.phone,
+          whatsappNumber: args.whatsappNumber,
+          preferredName: args.preferredName,
+          gender: args.gender,
+          dateOfBirth: args.dateOfBirth,
+          ordinationDate: args.ordinationDate,
+          homeAddress: args.homeAddress,
+          qualification: args.qualification,
+          yearsInMinistry: args.yearsInMinistry,
+          ministryFocus: args.ministryFocus,
+          supervisedZones: args.supervisedZones,
+          notes: args.notes,
+          commissioningDate: args.commissioningDate,
+          occupation: args.occupation,
+          assignedZone: args.assignedZone,
+          status: args.status,
+          overseerId: args.overseerId,
+        });
+
+        return { userId, success: true, isFirstAdmin: true };
+      }
+
       // Get an admin user for requestedBy (or use overseerId if provided)
-      let requestedBy: any;
+      let requestedBy: Id<"users"> | undefined;
       if (args.overseerId) {
         requestedBy = args.overseerId;
       } else {
@@ -107,6 +144,13 @@ export const register = mutation({
           const anyUser = await ctx.db.query("users").first();
           requestedBy = anyUser?._id;
         }
+      }
+
+      // This should not happen now since we handle first user above, but keep as safety check
+      if (!requestedBy) {
+        throw new Error(
+          "No administrators found. Please contact the system administrator to set up the first admin account."
+        );
       }
 
       const requestId = await ctx.db.insert("registrationRequests", {
@@ -124,7 +168,7 @@ export const register = mutation({
         homeAddress: args.homeAddress,
         notes: args.notes,
         status: "pending",
-        requestedBy: requestedBy!,
+        requestedBy: requestedBy,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
