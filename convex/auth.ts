@@ -175,13 +175,21 @@ export const register = mutation({
     }
 
     // For admin/pastor: direct creation (admin only)
-    // Note: This should check if current user is admin, but for now we'll allow it
+    // Check if this is the first admin
+    const existingAdmins = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", "admin"))
+      .collect();
+
+    const isFirstAdmin = existingAdmins.length === 0 && args.role === "admin";
+
     const userId = await ctx.db.insert("users", {
       email: args.email,
       name: args.name,
       role: args.role,
       passwordHash,
       isActive: true,
+      isFirstAdmin: isFirstAdmin || undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       phone: args.phone,
@@ -493,6 +501,14 @@ export const updateUserProfile = mutation({
     const targetUser = await ctx.db.get(args.userId);
     if (!targetUser) {
       throw new Error("User not found");
+    }
+
+    // Prevent deactivating or modifying the first admin
+    if (targetUser.isFirstAdmin) {
+      if (args.isActive === false) {
+        throw new Error("Cannot deactivate the first admin");
+      }
+      // Allow other updates but prevent role change or deletion
     }
 
     const updates: any = {

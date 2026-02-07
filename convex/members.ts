@@ -421,6 +421,161 @@ export const remove = mutation({
   },
 });
 
+// Get members to contact (smart or random listing)
+export const getMembersToContact = query({
+  args: {
+    token: v.string(),
+    mode: v.union(v.literal("smart"), v.literal("random")), // "smart" prioritizes important contacts, "random" shuffles
+    limit: v.optional(v.number()), // Maximum number of members to return
+    includePhoneOnly: v.optional(v.boolean()), // Include members with only phone (no WhatsApp)
+    includeWhatsAppOnly: v.optional(v.boolean()), // Include members with only WhatsApp (no phone)
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Only shepherds and pastors can use this feature
+    if (user.role !== "shepherd" && user.role !== "pastor" && user.role !== "admin") {
+      throw new Error("Unauthorized - only shepherds, pastors, and admins can get members to contact");
+    }
+
+    // Get members based on role permissions
+    let members = await ctx.db.query("members").collect();
+
+    if (user.role === "shepherd") {
+      // Shepherds can only see their own members
+      members = members.filter((m) => m.shepherdId === userId);
+    } else if (user.role === "pastor") {
+      // Pastors can see members of their shepherds
+      const shepherds = await ctx.db
+        .query("users")
+        .withIndex("by_overseer", (q) => q.eq("overseerId", userId))
+        .collect();
+      const shepherdIds = shepherds.map((s) => s._id);
+      members = members.filter((m) => shepherdIds.includes(m.shepherdId));
+    }
+    // Admins can see all
+
+    // Filter by active status
+    members = members.filter((m) => m.isActive);
+
+    // Filter by contact availability
+    const membersWithContact = members.filter((m) => {
+      const hasPhone = !!m.phone;
+      const hasWhatsApp = !!m.whatsappNumber;
+      
+      if (args.includePhoneOnly && args.includeWhatsAppOnly) {
+        return hasPhone || hasWhatsApp;
+      } else if (args.includePhoneOnly) {
+        return hasPhone && !hasWhatsApp;
+      } else if (args.includeWhatsAppOnly) {
+        return hasWhatsApp && !hasPhone;
+      } else {
+        // Default: include members with either phone or WhatsApp
+        return hasPhone || hasWhatsApp;
+      }
+    });
+
+    // Get pending assignments for context (used in both smart and random modes)
+    const allAssignments = await ctx.db.query("assignments").collect();
+    const pendingAssignments = allAssignments.filter(
+      (a) => a.status === "pending" || a.status === "in_progress"
+    );
+    const memberIdsWithPendingAssignments = new Set(
+      pendingAssignments.map((a) => a.memberId)
+    );
+
+    if (args.mode === "smart") {
+      // Smart mode: prioritize important contacts
+
+      // Get recent reports to determine last contact
+      const allReports = await ctx.db.query("reports").collect();
+      const memberLastContact = new Map<string, number>();
+      for (const report of allReports) {
+        const memberId = report.memberId;
+        const existing = memberLastContact.get(memberId) || 0;
+        if (report.createdAt > existing) {
+          memberLastContact.set(memberId, report.createdAt);
+        }
+      }
+
+      // Sort members by priority
+      membersWithContact.sort((a, b) => {
+        let aScore = 0;
+        let bScore = 0;
+
+        // Priority 1: Members with pending assignments (highest priority)
+        if (memberIdsWithPendingAssignments.has(a._id)) aScore += 1000;
+        if (memberIdsWithPendingAssignments.has(b._id)) bScore += 1000;
+
+        // Priority 2: At-risk members (by risk level)
+        const riskScores = { high: 300, medium: 200, low: 100, none: 0 };
+        aScore += riskScores[a.attendanceRiskLevel || "none"];
+        bScore += riskScores[b.attendanceRiskLevel || "none"];
+
+        // Priority 3: New converts and first timers
+        if (a.status === "new_convert") aScore += 150;
+        if (a.status === "first_timer") aScore += 100;
+        if (b.status === "new_convert") bScore += 150;
+        if (b.status === "first_timer") bScore += 100;
+
+        // Priority 4: Members not contacted recently (older last contact = higher priority)
+        const aLastContact = memberLastContact.get(a._id) || 0;
+        const bLastContact = memberLastContact.get(b._id) || 0;
+        // Add score based on days since last contact (max 50 points for 30+ days)
+        const daysSinceA = (Date.now() - aLastContact) / (1000 * 60 * 60 * 24);
+        const daysSinceB = (Date.now() - bLastContact) / (1000 * 60 * 60 * 24);
+        aScore += Math.min(50, Math.floor(daysSinceA));
+        bScore += Math.min(50, Math.floor(daysSinceB));
+
+        // Priority 5: Members with no contact history (never contacted)
+        if (aLastContact === 0) aScore += 75;
+        if (bLastContact === 0) bScore += 75;
+
+        // Sort descending (highest score first)
+        return bScore - aScore;
+      });
+    } else {
+      // Random mode: shuffle the array
+      for (let i = membersWithContact.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [membersWithContact[i], membersWithContact[j]] = [
+          membersWithContact[j],
+          membersWithContact[i],
+        ];
+      }
+    }
+
+    // Apply limit if specified
+    const result = args.limit
+      ? membersWithContact.slice(0, args.limit)
+      : membersWithContact;
+
+    // Return members with contact information
+    return result.map((member) => ({
+      _id: member._id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      preferredName: member.preferredName,
+      phone: member.phone,
+      whatsappNumber: member.whatsappNumber,
+      status: member.status,
+      attendanceRiskLevel: member.attendanceRiskLevel,
+      lastAttendanceDate: member.lastAttendanceDate,
+      profilePhotoId: member.profilePhotoId,
+      // Include assignment info if available
+      hasPendingAssignment: memberIdsWithPendingAssignments.has(member._id),
+    }));
+  },
+});
+
 // Bulk create members
 export const bulkCreate = mutation({
   args: {

@@ -46,6 +46,7 @@ export const create = mutation({
         v.literal("rescheduled")
       )
     ),
+    notes: v.optional(v.string()), // Brief notes describing the outcome
     attachments: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
@@ -81,14 +82,15 @@ export const create = mutation({
       shepherdId: userId,
       reportType: args.reportType,
       title: args.title,
-      content: args.content,
-      visitDate: args.visitDate,
-      outcome: args.outcome,
-      attachments: args.attachments,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      submittedAt: Date.now(),
-    });
+          content: args.content,
+          visitDate: args.visitDate,
+          outcome: args.outcome,
+          notes: args.notes,
+          attachments: args.attachments,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          submittedAt: Date.now(),
+        });
 
     // Notify admin and pastor
     if (user.overseerId) {
@@ -212,6 +214,7 @@ export const update = mutation({
         v.literal("rescheduled")
       )
     ),
+    notes: v.optional(v.string()), // Brief notes describing the outcome
     attachments: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
@@ -247,6 +250,7 @@ export const update = mutation({
     if (args.content !== undefined) updates.content = args.content;
     if (args.visitDate !== undefined) updates.visitDate = args.visitDate;
     if (args.outcome !== undefined) updates.outcome = args.outcome;
+    if (args.notes !== undefined) updates.notes = args.notes;
     if (args.attachments !== undefined) updates.attachments = args.attachments;
 
     await ctx.db.patch(args.reportId, updates);
@@ -316,6 +320,7 @@ export const bulkCreate = mutation({
             v.literal("rescheduled")
           )
         ),
+        notes: v.optional(v.string()), // Brief notes describing the outcome
         attachments: v.optional(v.array(v.id("_storage"))),
       })
     ),
@@ -365,6 +370,7 @@ export const bulkCreate = mutation({
           content: reportData.content,
           visitDate: reportData.visitDate,
           outcome: reportData.outcome,
+          notes: reportData.notes,
           attachments: reportData.attachments,
           createdAt: Date.now(),
           updatedAt: Date.now(),

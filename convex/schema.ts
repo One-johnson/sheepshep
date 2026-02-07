@@ -9,6 +9,7 @@ export default defineSchema({
     role: v.union(v.literal("admin"), v.literal("pastor"), v.literal("shepherd")),
     passwordHash: v.string(), // Hashed password for custom auth
     isActive: v.boolean(),
+    isFirstAdmin: v.optional(v.boolean()), // Flag to identify the first admin (cannot be deleted)
     createdAt: v.number(),
     updatedAt: v.number(),
     // Basic contact fields
@@ -209,6 +210,7 @@ export default defineSchema({
         v.literal("rescheduled")
       )
     ),
+    notes: v.optional(v.string()), // Brief notes describing the outcome
     attachments: v.optional(v.array(v.id("_storage"))), // File attachments
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -279,6 +281,8 @@ export default defineSchema({
       v.literal("assignment_completed"),
       v.literal("report_submitted"),
       v.literal("member_assigned"),
+      v.literal("prayer_request"),
+      v.literal("prayer_response"),
       v.literal("system"),
       v.literal("reminder")
     ),
@@ -293,7 +297,8 @@ export default defineSchema({
         v.literal("member"),
         v.literal("group"),
         v.literal("event"),
-        v.literal("reminder")
+        v.literal("reminder"),
+        v.literal("prayer_request")
       )
     ),
     isRead: v.boolean(),
@@ -410,4 +415,37 @@ export default defineSchema({
     .index("by_reminder_date", ["reminderDate"])
     .index("by_type", ["type"])
     .index("by_sent", ["isSent"]),
+
+  // Prayer requests - shepherds can send prayer requests for members
+  prayerRequests: defineTable({
+    memberId: v.id("members"),
+    requestedBy: v.id("users"), // Shepherd who created the request
+    title: v.string(),
+    description: v.string(), // Prayer request details
+    priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high"), v.literal("urgent")),
+    status: v.union(
+      v.literal("open"), // Request is open for prayer
+      v.literal("answered"), // Prayer has been answered
+      v.literal("closed") // Request is closed
+    ),
+    // Recipients - who can see this prayer request
+    recipients: v.array(v.id("users")), // Array of user IDs (shepherds, pastors, admins)
+    // Responses/prayers
+    responses: v.optional(
+      v.array(
+        v.object({
+          userId: v.id("users"),
+          message: v.string(),
+          createdAt: v.number(),
+        })
+      )
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    answeredAt: v.optional(v.number()),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_requested_by", ["requestedBy"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
 });
