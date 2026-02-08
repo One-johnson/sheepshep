@@ -31,6 +31,7 @@ export default defineSchema({
     commissioningDate: v.optional(v.number()), // Join Date / Commissioning Date (Unix timestamp)
     occupation: v.optional(v.string()), // Occupation / Ministry Role (e.g., "Teacher", "Business Owner", "Worship Leader")
     assignedZone: v.optional(v.string()), // Assigned Zone / Area
+    educationalBackground: v.optional(v.string()), // Educational Background / Highest Education Level
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ), // Status: Active / On Leave / Inactive (defaults to "active" if isActive is true)

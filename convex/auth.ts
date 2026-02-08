@@ -94,11 +94,13 @@ export const register = mutation({
     commissioningDate: v.optional(v.number()), // Unix timestamp
     occupation: v.optional(v.string()),
     assignedZone: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
     // Relationships
     overseerId: v.optional(v.id("users")), // For shepherds, assign a pastor
+    profilePhotoId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     // Check if user already exists
@@ -157,8 +159,10 @@ export const register = mutation({
           commissioningDate: args.commissioningDate,
           occupation: args.occupation,
           assignedZone: args.assignedZone,
+          educationalBackground: args.educationalBackground,
           status: args.status,
           overseerId: args.overseerId,
+          profilePhotoId: args.profilePhotoId,
         });
 
         return { userId, success: true, isFirstAdmin: true };
@@ -287,8 +291,10 @@ export const register = mutation({
       commissioningDate: args.commissioningDate,
       occupation: args.occupation,
       assignedZone: args.assignedZone,
+      educationalBackground: args.educationalBackground,
       status: args.status,
       overseerId: args.overseerId,
+      profilePhotoId: args.profilePhotoId,
     });
 
     return { userId, success: true };
@@ -480,6 +486,7 @@ export const updateProfile = mutation({
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
     assignedZone: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
@@ -513,6 +520,7 @@ export const updateProfile = mutation({
     if (args.commissioningDate !== undefined) updates.commissioningDate = args.commissioningDate;
     if (args.occupation !== undefined) updates.occupation = args.occupation;
     if (args.assignedZone !== undefined) updates.assignedZone = args.assignedZone;
+    if (args.educationalBackground !== undefined) updates.educationalBackground = args.educationalBackground;
     if (args.status !== undefined) updates.status = args.status;
 
     await ctx.db.patch(userId, updates);
@@ -554,6 +562,7 @@ export const updateUserProfile = mutation({
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
     assignedZone: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
@@ -616,6 +625,7 @@ export const updateUserProfile = mutation({
     if (args.commissioningDate !== undefined) updates.commissioningDate = args.commissioningDate;
     if (args.occupation !== undefined) updates.occupation = args.occupation;
     if (args.assignedZone !== undefined) updates.assignedZone = args.assignedZone;
+    if (args.educationalBackground !== undefined) updates.educationalBackground = args.educationalBackground;
     if (args.status !== undefined) updates.status = args.status;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.overseerId !== undefined) updates.overseerId = args.overseerId;
