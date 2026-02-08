@@ -49,6 +49,7 @@ import {
   MoreHorizontal,
   Eye,
   Pencil,
+  UserRoundCog,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AddPastorDialog } from "@/components/dashboard/add-pastor-dialog";
@@ -56,6 +57,14 @@ import { AddShepherdDialog } from "@/components/dashboard/add-shepherd-dialog";
 import { EditPastorDialog } from "@/components/dashboard/edit-pastor-dialog";
 import { EditShepherdDialog } from "@/components/dashboard/edit-shepherd-dialog";
 import { ViewUserDialog } from "@/components/dashboard/view-user-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 // Type for user entry
 type UserEntry = {
@@ -116,6 +125,7 @@ export default function UsersPage() {
   const stats = useQuery(api.authUsers.getStats, token ? { token } : "skip");
   const deleteUser = useMutation(api.authUsers.deleteUser);
   const bulkDeleteUsers = useMutation(api.authUsers.bulkDelete);
+  const updateUserProfile = useMutation(api.auth.updateUserProfile);
 
   const [selectedRows, setSelectedRows] = React.useState<UserEntry[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
@@ -128,6 +138,10 @@ export default function UsersPage() {
   const [viewUserDialogOpen, setViewUserDialogOpen] = React.useState(false);
   const [userToEdit, setUserToEdit] = React.useState<UserEntry | null>(null);
   const [userToView, setUserToView] = React.useState<UserEntry | null>(null);
+  const [changeRoleDialogOpen, setChangeRoleDialogOpen] = React.useState(false);
+  const [userToChangeRole, setUserToChangeRole] = React.useState<UserEntry | null>(null);
+  const [newRole, setNewRole] = React.useState<"admin" | "pastor" | "shepherd" | "">("");
+  const [isChangingRole, setIsChangingRole] = React.useState(false);
 
   const isLoading = users === undefined || stats === undefined;
 
@@ -145,6 +159,28 @@ export default function UsersPage() {
       toast.error(error.message || "Failed to delete user");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Handle role change
+  const handleRoleChange = async () => {
+    if (!token || !userToChangeRole || !newRole) return;
+
+    setIsChangingRole(true);
+    try {
+      await updateUserProfile({
+        token,
+        userId: userToChangeRole._id,
+        role: newRole as "admin" | "pastor" | "shepherd",
+      });
+      toast.success(`User role changed to ${newRole} successfully`);
+      setChangeRoleDialogOpen(false);
+      setUserToChangeRole(null);
+      setNewRole("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to change user role");
+    } finally {
+      setIsChangingRole(false);
     }
   };
 
@@ -408,6 +444,17 @@ export default function UsersPage() {
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUserToChangeRole(user);
+                    setNewRole(user.role);
+                    setChangeRoleDialogOpen(true);
+                  }}
+                >
+                  <UserRoundCog className="mr-2 h-4 w-4" />
+                  Change Role
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={(e) => {
@@ -657,6 +704,67 @@ export default function UsersPage() {
           user={userToView}
         />
       )}
+
+      {/* Change Role Dialog */}
+      <Dialog open={changeRoleDialogOpen} onOpenChange={setChangeRoleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change User Role</DialogTitle>
+            <DialogDescription>
+              Change the role for {userToChangeRole?.name} ({userToChangeRole?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="current-role">Current Role</Label>
+              <div className="flex items-center gap-2">
+                <Badge variant={getRoleBadgeVariant(userToChangeRole?.role || "")}>
+                  {userToChangeRole?.role
+                    ? userToChangeRole.role.charAt(0).toUpperCase() + userToChangeRole.role.slice(1)
+                    : ""}
+                </Badge>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-role">New Role</Label>
+              <Select value={newRole} onValueChange={(value) => setNewRole(value as any)}>
+                <SelectTrigger id="new-role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="pastor">Pastor</SelectItem>
+                  <SelectItem value="shepherd">Shepherd</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {userToChangeRole?.role === newRole && (
+              <p className="text-sm text-muted-foreground">
+                The selected role is the same as the current role.
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setChangeRoleDialogOpen(false);
+                setUserToChangeRole(null);
+                setNewRole("");
+              }}
+              disabled={isChangingRole}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRoleChange}
+              disabled={isChangingRole || !newRole || userToChangeRole?.role === newRole}
+            >
+              {isChangingRole ? "Changing..." : "Change Role"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

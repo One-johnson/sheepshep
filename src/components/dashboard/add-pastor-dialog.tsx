@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Upload, FileDown, X } from "lucide-react";
+import { Loader2, UserPlus, Upload, FileDown, X, Image as ImageIcon, Camera } from "lucide-react";
 
 import {
   Dialog,
@@ -37,6 +37,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Id } from "../../../convex/_generated/dataModel";
 
 const pastorSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -67,10 +70,14 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const register = useMutation(api.auth.register);
   const bulkAdd = useMutation(api.authUsers.bulkAdd);
+  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [csvFile, setCsvFile] = React.useState<File | null>(null);
   const [csvError, setCsvError] = React.useState<string | null>(null);
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
 
   const form = useForm<PastorFormValues>({
     resolver: zodResolver(pastorSchema),
@@ -239,6 +246,49 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
     }
   };
 
+  // Handle photo selection
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Photo size must be less than 5MB");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please select an image file");
+        return;
+      }
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Upload photo and get storage ID
+  const uploadPhoto = async (): Promise<Id<"_storage"> | null> => {
+    if (!photoFile || !token) return null;
+
+    setIsUploadingPhoto(true);
+    try {
+      const uploadUrl = await generateUploadUrl({ token });
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": photoFile.type },
+        body: photoFile,
+      });
+      const { storageId } = await result.json();
+      return storageId as Id<"_storage">;
+    } catch (error: any) {
+      toast.error("Failed to upload photo");
+      return null;
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
   // Handle single add
   const onSubmit = async (data: PastorFormValues) => {
     if (!token) return;
@@ -264,9 +314,19 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
         }
       }
 
+      // Upload photo if selected
+      if (photoFile) {
+        const storageId = await uploadPhoto();
+        if (storageId) {
+          submitData.profilePhotoId = storageId;
+        }
+      }
+
       await register({ token, ...submitData });
       toast.success("Pastor added successfully");
       form.reset();
+      setPhotoFile(null);
+      setPhotoPreview(null);
       onOpenChange(false);
     } catch (error: any) {
       toast.error(error.message || "Failed to add pastor");
@@ -294,10 +354,74 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
             <TabsTrigger value="import">Import CSV</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="single" className="space-y-4">
+          <TabsContent value="single" className="space-y-6">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {/* Profile Photo Section */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Profile Photo</Label>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Upload a profile photo for this pastor
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <Avatar className="h-24 w-24">
+                      {photoPreview ? (
+                        <AvatarImage src={photoPreview} alt="Preview" />
+                      ) : (
+                        <AvatarFallback>
+                          <Camera className="h-8 w-8" />
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoSelect}
+                        className="hidden"
+                        id="photo-upload"
+                      />
+                      <Label
+                        htmlFor="photo-upload"
+                        className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-accent"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        {photoFile ? "Change Photo" : "Upload Photo"}
+                      </Label>
+                      {photoFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="ml-2"
+                          onClick={() => {
+                            setPhotoFile(null);
+                            setPhotoPreview(null);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Max 5MB. JPG, PNG, or GIF.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Basic Information</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Essential details about the pastor
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="name"
@@ -494,19 +618,27 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
                       </FormItem>
                     )}
                   />
+                  </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2 pt-4">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => onOpenChange(false)}
-                    disabled={isSubmitting}
+                    onClick={() => {
+                      onOpenChange(false);
+                      form.reset();
+                      setPhotoFile(null);
+                      setPhotoPreview(null);
+                    }}
+                    disabled={isSubmitting || isUploadingPhoto}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button type="submit" disabled={isSubmitting || isUploadingPhoto}>
+                    {(isSubmitting || isUploadingPhoto) && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Add Pastor
                   </Button>
                 </div>

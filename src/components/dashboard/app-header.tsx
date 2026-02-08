@@ -129,8 +129,10 @@ export function AppHeader() {
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-3 ml-auto">
-          {/* Theme Toggle */}
-          <ThemeToggle />
+          {/* Theme Toggle - Hidden on mobile */}
+          <div className="hidden md:block">
+            <ThemeToggle />
+          </div>
 
           {/* Notifications Bell */}
           {currentUser && (
@@ -152,57 +154,76 @@ export function AppHeader() {
             </Button>
           )}
 
-          {/* User Profile Dropdown */}
+          {/* User Profile - Desktop Dropdown, Mobile Avatar Only */}
           {currentUser && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="flex items-center gap-2 h-auto py-2 px-3"
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                      {getInitials(currentUser.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden md:flex flex-col items-start">
-                    <span className="text-sm font-medium leading-none">
-                      {currentUser.preferredName || currentUser.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground mt-1">
-                      {currentUser.email}
-                    </span>
-                  </div>
-                  <ChevronDown className="h-4 w-4 hidden md:block" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {currentUser.name}
-                    </p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {currentUser.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} variant="destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <>
+              {/* Desktop: Dropdown Menu */}
+              <div className="hidden md:block">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center gap-2 h-auto py-2 px-3"
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                          {getInitials(currentUser.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-medium leading-none">
+                          {currentUser.preferredName || currentUser.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground mt-1">
+                          {currentUser.email}
+                        </span>
+                      </div>
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {currentUser.name}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {currentUser.email}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+                      <User className="mr-2 h-4 w-4" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Mobile: Avatar Only - Click to go to profile */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                onClick={() => router.push("/dashboard/profile")}
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {getInitials(currentUser.name)}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -71,6 +71,7 @@ export const cleanupExpiredSessions = mutation({
 // For shepherd: creates registration request for approval
 export const register = mutation({
   args: {
+    token: v.optional(v.string()),
     email: v.string(),
     password: v.string(),
     name: v.string(), // Full Name
@@ -103,6 +104,22 @@ export const register = mutation({
     profilePhotoId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    // Verify token and check admin access for admin/pastor creation
+    if (args.role === "admin" || args.role === "pastor") {
+      if (!args.token) {
+        throw new Error("Unauthorized - token required to create admins or pastors");
+      }
+      const currentUserId = await verifyToken(ctx, args.token);
+      if (!currentUserId) {
+        throw new Error("Unauthorized");
+      }
+
+      const currentUser = await ctx.db.get(currentUserId);
+      if (!currentUser || currentUser.role !== "admin") {
+        throw new Error("Unauthorized - admin access required to create admins or pastors");
+      }
+    }
+
     // Check if user already exists
     const existingUser = await ctx.db
       .query("users")
@@ -569,6 +586,7 @@ export const updateUserProfile = mutation({
     // Admin fields
     isActive: v.optional(v.boolean()),
     overseerId: v.optional(v.id("users")),
+    role: v.optional(v.union(v.literal("admin"), v.literal("pastor"), v.literal("shepherd"))),
   },
   handler: async (ctx, args) => {
     const currentUserId = await verifyToken(ctx, args.token);
@@ -600,7 +618,15 @@ export const updateUserProfile = mutation({
       if (args.isActive === false) {
         throw new Error("Cannot deactivate the first admin");
       }
+      if (args.role !== undefined && args.role !== targetUserDoc.role) {
+        throw new Error("Cannot change the role of the first admin");
+      }
       // Allow other updates but prevent role change or deletion
+    }
+    
+    // Prevent changing your own role
+    if (args.role !== undefined && args.userId === currentUserId) {
+      throw new Error("Cannot change your own role");
     }
 
     const updates: any = {
@@ -629,6 +655,7 @@ export const updateUserProfile = mutation({
     if (args.status !== undefined) updates.status = args.status;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.overseerId !== undefined) updates.overseerId = args.overseerId;
+    if (args.role !== undefined) updates.role = args.role;
 
     await ctx.db.patch(args.userId, updates);
 
