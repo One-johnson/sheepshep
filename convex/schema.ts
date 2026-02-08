@@ -232,6 +232,108 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_expires_at", ["expiresAt"]),
 
+  // Audit Log - system activity logs (admin only)
+  auditLogs: defineTable({
+    userId: v.id("users"), // User who performed the action
+    action: v.string(), // Action performed (e.g., "user_created", "member_updated", "settings_changed")
+    entityType: v.string(), // Type of entity affected (e.g., "user", "member", "settings")
+    entityId: v.optional(v.string()), // ID of the affected entity
+    details: v.optional(v.string()), // Additional details about the action
+    ipAddress: v.optional(v.string()), // IP address of the user
+    userAgent: v.optional(v.string()), // User agent/browser info
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_action", ["action"])
+    .index("by_entity_type", ["entityType"])
+    .index("by_created_at", ["createdAt"]),
+
+  // Settings - application settings (admin only)
+  settings: defineTable({
+    // General
+    churchName: v.optional(v.string()),
+    churchEmail: v.optional(v.string()),
+    churchPhone: v.optional(v.string()),
+    churchAddress: v.optional(v.string()),
+    churchWebsite: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+    dateFormat: v.optional(v.string()),
+    timeFormat: v.optional(v.string()),
+    
+    // Attendance
+    attendanceReminderTime: v.optional(v.string()),
+    attendanceReminderDays: v.optional(v.array(v.number())),
+    requireAttendanceApproval: v.optional(v.boolean()),
+    autoApproveAfterHours: v.optional(v.number()),
+    lowRiskDays: v.optional(v.number()),
+    mediumRiskDays: v.optional(v.number()),
+    highRiskDays: v.optional(v.number()),
+    enableAtRiskTracking: v.optional(v.boolean()),
+    
+    // Notifications
+    enableEmailNotifications: v.optional(v.boolean()),
+    enableInAppNotifications: v.optional(v.boolean()),
+    notificationRetentionDays: v.optional(v.number()),
+    birthdayReminderDays: v.optional(v.number()),
+    anniversaryReminderDays: v.optional(v.number()),
+    assignmentReminderDays: v.optional(v.number()),
+    
+    // User Management
+    requireShepherdApproval: v.optional(v.boolean()),
+    autoApproveFirstAdmin: v.optional(v.boolean()),
+    defaultMemberStatus: v.optional(v.string()),
+    customIdPrefix: v.optional(v.string()),
+    autoGenerateCustomIds: v.optional(v.boolean()),
+    
+    // Password Policy
+    minPasswordLength: v.optional(v.number()),
+    requireUppercase: v.optional(v.boolean()),
+    requireLowercase: v.optional(v.boolean()),
+    requireNumbers: v.optional(v.boolean()),
+    requireSpecialChars: v.optional(v.boolean()),
+    passwordExpirationDays: v.optional(v.number()),
+    
+    // Session
+    sessionTimeoutMinutes: v.optional(v.number()),
+    maxConcurrentSessions: v.optional(v.number()),
+    
+    // Assignments
+    defaultAssignmentDuration: v.optional(v.number()),
+    requireReportsForAssignments: v.optional(v.boolean()),
+    autoCloseAssignmentsAfterDays: v.optional(v.number()),
+    
+    // Reports
+    requireNotesInReports: v.optional(v.boolean()),
+    reportSubmissionDeadlineHours: v.optional(v.number()),
+    enableReportAttachments: v.optional(v.boolean()),
+    
+    // Data Retention
+    inactiveMemberRetentionDays: v.optional(v.number()),
+    archiveAttendanceAfterDays: v.optional(v.number()),
+    deleteNotificationsAfterDays: v.optional(v.number()),
+    
+    // Export & Backup
+    enableCsvExports: v.optional(v.boolean()),
+    enablePdfExports: v.optional(v.boolean()),
+    autoBackupFrequency: v.optional(v.string()),
+    
+    // Privacy
+    showContactToShepherds: v.optional(v.boolean()),
+    showContactToPastors: v.optional(v.boolean()),
+    requireDataConsent: v.optional(v.boolean()),
+    
+    // Security
+    enableTwoFactorAuth: v.optional(v.boolean()),
+    loginAttemptLimit: v.optional(v.number()),
+    lockoutDurationMinutes: v.optional(v.number()),
+    enableAuditLog: v.optional(v.boolean()),
+    auditLogRetentionDays: v.optional(v.number()),
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  }),
+
   // Registration requests - for shepherd registration approval workflow
   registrationRequests: defineTable({
     email: v.string(),

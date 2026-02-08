@@ -17,6 +17,7 @@ import {
   Calendar,
   MapPin,
   Briefcase,
+  Home,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -139,8 +140,12 @@ export default function RegisterPage() {
         preferredName: values.preferredName || undefined,
       });
 
-      // Shepherd registration always requires approval
-      if (result.status === "pending") {
+      // Check if this was the first admin (auto-approved)
+      if (result.isFirstAdmin) {
+        toast.success("First admin account created successfully! You can now log in.");
+        router.push("/login");
+      } else if (result.status === "pending") {
+        // Shepherd registration requires approval
         setRegistrationStatus({
           status: "pending",
           message: result.message || "Registration request submitted for approval",
@@ -148,7 +153,7 @@ export default function RegisterPage() {
         setShowApprovalAlert(true);
         form.reset();
       } else {
-        // This shouldn't happen for shepherd registration, but handle it just in case
+        // Direct registration (shouldn't happen for shepherd, but handle it)
         toast.success("Account created successfully!");
         router.push("/login");
       }
@@ -164,6 +169,16 @@ export default function RegisterPage() {
       {/* Theme Toggle - Fixed position */}
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
+      </div>
+
+      {/* Back to Home Button */}
+      <div className="fixed top-4 left-4 z-50">
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/">
+            <Home className="mr-2 h-4 w-4" />
+            Back to Home
+          </Link>
+        </Button>
       </div>
 
       {/* Left Side - Register Form */}

@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 import * as bcrypt from "bcryptjs";
+import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Generate session token without crypto (using Math.random)
 function generateSessionToken(): string {
@@ -11,6 +12,41 @@ function generateSessionToken(): string {
     token += chars[Math.floor(Math.random() * chars.length)];
   }
   return token;
+}
+
+// Verify session token (helper function)
+export async function verifyToken(
+  ctx: any,
+  token: string
+): Promise<Id<"users"> | null> {
+  const session = await ctx.db
+    .query("sessions")
+    .withIndex("by_token", (q: any) => q.eq("token", token))
+    .first();
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.expiresAt < Date.now()) {
+    await ctx.db.delete(session._id);
+    return null;
+  }
+
+  const user = await ctx.db.get(session.userId);
+  if (!user) {
+    await ctx.db.delete(session._id);
+    return null;
+  }
+
+  // Type assertion: userId is Id<"users"> so user must be a user document
+  const userDoc = user as any;
+  if (!userDoc.isActive) {
+    await ctx.db.delete(session._id);
+    return null;
+  }
+
+  return session.userId;
 }
 
 // Clean up expired sessions (cron job)
@@ -91,8 +127,45 @@ export const register = mutation({
 
     // If shepherd, create registration request instead of direct user creation
     if (args.role === "shepherd") {
+      // Check if this is the very first user in the system
+      const existingUsers = await ctx.db.query("users").collect();
+      const isFirstUser = existingUsers.length === 0;
+
+      // If this is the first user, auto-approve and create them as an admin directly
+      if (isFirstUser) {
+        const userId = await ctx.db.insert("users", {
+          email: args.email,
+          name: args.name,
+          role: "admin", // First user becomes admin
+          passwordHash,
+          isActive: true,
+          isFirstAdmin: true, // Mark as first admin
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          phone: args.phone,
+          whatsappNumber: args.whatsappNumber,
+          preferredName: args.preferredName,
+          gender: args.gender,
+          dateOfBirth: args.dateOfBirth,
+          ordinationDate: args.ordinationDate,
+          homeAddress: args.homeAddress,
+          qualification: args.qualification,
+          yearsInMinistry: args.yearsInMinistry,
+          ministryFocus: args.ministryFocus,
+          supervisedZones: args.supervisedZones,
+          notes: args.notes,
+          commissioningDate: args.commissioningDate,
+          occupation: args.occupation,
+          assignedZone: args.assignedZone,
+          status: args.status,
+          overseerId: args.overseerId,
+        });
+
+        return { userId, success: true, isFirstAdmin: true };
+      }
+
       // Get an admin user for requestedBy (or use overseerId if provided)
-      let requestedBy: any;
+      let requestedBy: Id<"users"> | undefined;
       if (args.overseerId) {
         requestedBy = args.overseerId;
       } else {
@@ -107,6 +180,13 @@ export const register = mutation({
           const anyUser = await ctx.db.query("users").first();
           requestedBy = anyUser?._id;
         }
+      }
+
+      // This should not happen now since we handle first user above, but keep as safety check
+      if (!requestedBy) {
+        throw new Error(
+          "No administrators found. Please contact the system administrator to set up the first admin account."
+        );
       }
 
       const requestId = await ctx.db.insert("registrationRequests", {
@@ -124,7 +204,7 @@ export const register = mutation({
         homeAddress: args.homeAddress,
         notes: args.notes,
         status: "pending",
-        requestedBy: requestedBy!,
+        requestedBy: requestedBy,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -140,7 +220,7 @@ export const register = mutation({
         .withIndex("by_role", (q) => q.eq("role", "pastor"))
         .collect();
 
-      // Create notifications (helper function would be imported, but for now we'll do it inline)
+      // Create notifications
       for (const admin of admins) {
         if (admin.isActive) {
           await ctx.db.insert("notifications", {
@@ -305,57 +385,32 @@ export const getCurrentUser = query({
 
     const user = await ctx.db.get(session.userId);
 
-    if (!user || !user.isActive) {
+    if (!user) {
       return null;
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    // Type assertion: userId is Id<"users"> so user must be a user document
+    const userDoc = user as any;
+    if (!userDoc.isActive) {
+      return null;
+    }
+
+    const { passwordHash: _, ...userWithoutPassword } = userDoc;
     return userWithoutPassword;
   },
 });
-
-// Verify session token (helper function for other mutations/queries)
-export async function verifyToken(
-  ctx: any,
-  token: string
-): Promise<Id<"users"> | null> {
-  const session = await ctx.db
-    .query("sessions")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .withIndex("by_token", (q: any) => q.eq("token", token))
-    .first();
-
-  if (!session) {
-    return null;
-  }
-
-  if (session.expiresAt < Date.now()) {
-    await ctx.db.delete(session._id);
-    return null;
-  }
-
-  const user = await ctx.db.get(session.userId);
-
-  if (!user || !user.isActive) {
-    await ctx.db.delete(session._id);
-    return null;
-  }
-
-  return session.userId;
-}
 
 // Change password
 export const changePassword = mutation({
   args: {
     token: v.string(),
-    currentPassword: v.string(),
+    oldPassword: v.string(),
     newPassword: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
-
     if (!userId) {
-      throw new Error("Invalid or expired session");
+      throw new Error("Unauthorized");
     }
 
     const user = await ctx.db.get(userId);
@@ -363,18 +418,38 @@ export const changePassword = mutation({
       throw new Error("User not found");
     }
 
-    // Verify current password using bcryptjs
-    if (!bcrypt.compareSync(args.currentPassword, user.passwordHash)) {
+    // Type assertion: userId is Id<"users"> so user must be a user document
+    const userDoc = user as any;
+
+    // Verify old password
+    const isOldPasswordValid = bcrypt.compareSync(args.oldPassword, userDoc.passwordHash);
+    if (!isOldPasswordValid) {
       throw new Error("Current password is incorrect");
     }
 
-    // Update password using bcryptjs
-    const saltRounds = 10;
-    const newPasswordHash = bcrypt.hashSync(args.newPassword, saltRounds);
+    // Hash new password
+    const newPasswordHash =  bcrypt.hashSync(args.newPassword, 10);
+
+    // Update password
     await ctx.db.patch(userId, {
       passwordHash: newPasswordHash,
       updatedAt: Date.now(),
     });
+
+    // Create audit log directly (don't use scheduler)
+    try {
+      await ctx.db.insert("auditLogs", {
+        userId,
+        action: "password_changed",
+        entityType: "user",
+        entityId: userId,
+        details: "User changed their password",
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      // Audit log creation failed, but password change succeeded
+      console.error("Failed to create audit log:", error);
+    }
 
     return { success: true };
   },
@@ -447,7 +522,8 @@ export const updateProfile = mutation({
       throw new Error("User not found");
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    const userDoc = updatedUser as any;
+    const { passwordHash: _, ...userWithoutPassword } = userDoc;
     return userWithoutPassword;
   },
 });
@@ -494,7 +570,12 @@ export const updateUserProfile = mutation({
 
     // Check if user is admin
     const currentUser = await ctx.db.get(currentUserId);
-    if (!currentUser || currentUser.role !== "admin") {
+    if (!currentUser) {
+      throw new Error("User not found");
+    }
+
+    const currentUserDoc = currentUser as any;
+    if (currentUserDoc.role !== "admin") {
       throw new Error("Unauthorized - admin access required");
     }
 
@@ -503,8 +584,10 @@ export const updateUserProfile = mutation({
       throw new Error("User not found");
     }
 
+    const targetUserDoc = targetUser as any;
+
     // Prevent deactivating or modifying the first admin
-    if (targetUser.isFirstAdmin) {
+    if (targetUserDoc.isFirstAdmin) {
       if (args.isActive === false) {
         throw new Error("Cannot deactivate the first admin");
       }
@@ -544,7 +627,8 @@ export const updateUserProfile = mutation({
       throw new Error("User not found");
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    const updatedUserDoc = updatedUser as any;
+    const { passwordHash: _, ...userWithoutPassword } = updatedUserDoc;
     return userWithoutPassword;
   },
 });
