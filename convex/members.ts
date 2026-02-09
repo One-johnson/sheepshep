@@ -144,14 +144,13 @@ export const create = mutation({
       notes: args.notes,
       status: args.status || "established",
       shepherdId: args.shepherdId,
-      attendanceRiskLevel: "none",
       createdAt: Date.now(),
       updatedAt: Date.now(),
       createdBy: userId,
       isActive: true,
     });
 
-    return { memberId, customId };
+    return await ctx.db.get(memberId);
   },
 });
 
@@ -421,6 +420,112 @@ export const remove = mutation({
   },
 });
 
+// Bulk delete members (admin only)
+export const bulkDelete = mutation({
+  args: {
+    token: v.string(),
+    memberIds: v.array(v.id("members")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    const deleted: string[] = [];
+    const errors: Array<{ memberId: string; error: string }> = [];
+
+    for (const memberId of args.memberIds) {
+      try {
+        const member = await ctx.db.get(memberId);
+        if (!member) {
+          errors.push({ memberId, error: "Member not found" });
+          continue;
+        }
+
+        // Soft delete
+        await ctx.db.patch(memberId, {
+          isActive: false,
+          updatedAt: Date.now(),
+        });
+
+        deleted.push(memberId);
+      } catch (error: any) {
+        errors.push({ memberId, error: error.message || "Unknown error" });
+      }
+    }
+
+    return {
+      success: true,
+      deleted: deleted.length,
+      total: args.memberIds.length,
+      memberIds: deleted,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  },
+});
+
+// Bulk update member status (admin only)
+export const bulkUpdateStatus = mutation({
+  args: {
+    token: v.string(),
+    memberIds: v.array(v.id("members")),
+    status: v.union(
+      v.literal("new_convert"),
+      v.literal("first_timer"),
+      v.literal("established"),
+      v.literal("visitor"),
+      v.literal("inactive")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    const updated: string[] = [];
+    const errors: Array<{ memberId: string; error: string }> = [];
+
+    for (const memberId of args.memberIds) {
+      try {
+        const member = await ctx.db.get(memberId);
+        if (!member) {
+          errors.push({ memberId, error: "Member not found" });
+          continue;
+        }
+
+        await ctx.db.patch(memberId, {
+          status: args.status,
+          updatedAt: Date.now(),
+        });
+
+        updated.push(memberId);
+      } catch (error: any) {
+        errors.push({ memberId, error: error.message || "Unknown error" });
+      }
+    }
+
+    return {
+      success: true,
+      updated: updated.length,
+      total: args.memberIds.length,
+      memberIds: updated,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  },
+});
+
 // Get members to contact (smart or random listing)
 export const getMembersToContact = query({
   args: {
@@ -471,79 +576,29 @@ export const getMembersToContact = query({
       const hasPhone = !!m.phone;
       const hasWhatsApp = !!m.whatsappNumber;
       
-      if (args.includePhoneOnly && args.includeWhatsAppOnly) {
-        return hasPhone || hasWhatsApp;
-      } else if (args.includePhoneOnly) {
-        return hasPhone && !hasWhatsApp;
-      } else if (args.includeWhatsAppOnly) {
-        return hasWhatsApp && !hasPhone;
-      } else {
-        // Default: include members with either phone or WhatsApp
-        return hasPhone || hasWhatsApp;
-      }
+      if (hasPhone && hasWhatsApp) return true;
+      if (hasPhone && args.includePhoneOnly) return true;
+      if (hasWhatsApp && args.includeWhatsAppOnly) return true;
+      return false;
     });
 
-    // Get pending assignments for context (used in both smart and random modes)
-    const allAssignments = await ctx.db.query("assignments").collect();
-    const pendingAssignments = allAssignments.filter(
-      (a) => a.status === "pending" || a.status === "in_progress"
-    );
-    const memberIdsWithPendingAssignments = new Set(
-      pendingAssignments.map((a) => a.memberId)
-    );
-
+    // Apply smart or random mode
     if (args.mode === "smart") {
-      // Smart mode: prioritize important contacts
-
-      // Get recent reports to determine last contact
-      const allReports = await ctx.db.query("reports").collect();
-      const memberLastContact = new Map<string, number>();
-      for (const report of allReports) {
-        const memberId = report.memberId;
-        const existing = memberLastContact.get(memberId) || 0;
-        if (report.createdAt > existing) {
-          memberLastContact.set(memberId, report.createdAt);
-        }
-      }
-
-      // Sort members by priority
+      // Prioritize: new converts > first timers > established > visitors > inactive
+      const priority: Record<string, number> = {
+        new_convert: 5,
+        first_timer: 4,
+        established: 3,
+        visitor: 2,
+        inactive: 1,
+      };
       membersWithContact.sort((a, b) => {
-        let aScore = 0;
-        let bScore = 0;
-
-        // Priority 1: Members with pending assignments (highest priority)
-        if (memberIdsWithPendingAssignments.has(a._id)) aScore += 1000;
-        if (memberIdsWithPendingAssignments.has(b._id)) bScore += 1000;
-
-        // Priority 2: At-risk members (by risk level)
-        const riskScores = { high: 300, medium: 200, low: 100, none: 0 };
-        aScore += riskScores[a.attendanceRiskLevel || "none"];
-        bScore += riskScores[b.attendanceRiskLevel || "none"];
-
-        // Priority 3: New converts and first timers
-        if (a.status === "new_convert") aScore += 150;
-        if (a.status === "first_timer") aScore += 100;
-        if (b.status === "new_convert") bScore += 150;
-        if (b.status === "first_timer") bScore += 100;
-
-        // Priority 4: Members not contacted recently (older last contact = higher priority)
-        const aLastContact = memberLastContact.get(a._id) || 0;
-        const bLastContact = memberLastContact.get(b._id) || 0;
-        // Add score based on days since last contact (max 50 points for 30+ days)
-        const daysSinceA = (Date.now() - aLastContact) / (1000 * 60 * 60 * 24);
-        const daysSinceB = (Date.now() - bLastContact) / (1000 * 60 * 60 * 24);
-        aScore += Math.min(50, Math.floor(daysSinceA));
-        bScore += Math.min(50, Math.floor(daysSinceB));
-
-        // Priority 5: Members with no contact history (never contacted)
-        if (aLastContact === 0) aScore += 75;
-        if (bLastContact === 0) bScore += 75;
-
-        // Sort descending (highest score first)
-        return bScore - aScore;
+        const aPriority = priority[a.status || "established"] || 0;
+        const bPriority = priority[b.status || "established"] || 0;
+        return bPriority - aPriority;
       });
     } else {
-      // Random mode: shuffle the array
+      // Random shuffle
       for (let i = membersWithContact.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [membersWithContact[i], membersWithContact[j]] = [
@@ -553,217 +608,9 @@ export const getMembersToContact = query({
       }
     }
 
-    // Apply limit if specified
-    const result = args.limit
-      ? membersWithContact.slice(0, args.limit)
-      : membersWithContact;
-
-    // Return members with contact information
-    return result.map((member) => ({
-      _id: member._id,
-      firstName: member.firstName,
-      lastName: member.lastName,
-      preferredName: member.preferredName,
-      phone: member.phone,
-      whatsappNumber: member.whatsappNumber,
-      status: member.status,
-      attendanceRiskLevel: member.attendanceRiskLevel,
-      lastAttendanceDate: member.lastAttendanceDate,
-      profilePhotoId: member.profilePhotoId,
-      // Include assignment info if available
-      hasPendingAssignment: memberIdsWithPendingAssignments.has(member._id),
-    }));
-  },
-});
-
-// Bulk create members
-export const bulkCreate = mutation({
-  args: {
-    token: v.string(),
-    members: v.array(
-      v.object({
-        firstName: v.string(),
-        lastName: v.string(),
-        preferredName: v.optional(v.string()),
-        gender: v.union(v.literal("male"), v.literal("female"), v.literal("other")),
-        dateOfBirth: v.number(),
-        maritalStatus: v.optional(
-          v.union(
-            v.literal("single"),
-            v.literal("married"),
-            v.literal("divorced"),
-            v.literal("widowed")
-          )
-        ),
-        weddingAnniversaryDate: v.optional(v.number()),
-        spouseName: v.optional(v.string()),
-        childrenCount: v.optional(v.number()),
-        phone: v.string(),
-        whatsappNumber: v.optional(v.string()),
-        email: v.optional(v.string()),
-        address: v.string(),
-        nearestLandmark: v.optional(v.string()),
-        city: v.optional(v.string()),
-        state: v.optional(v.string()),
-        zipCode: v.optional(v.string()),
-        country: v.optional(v.string()),
-        dateJoinedChurch: v.number(),
-        baptismDate: v.optional(v.number()),
-        occupation: v.optional(v.string()),
-        emergencyContactName: v.optional(v.string()),
-        emergencyContactPhone: v.optional(v.string()),
-        profilePhotoId: v.optional(v.id("_storage")),
-        notes: v.optional(v.string()),
-        status: v.optional(
-          v.union(
-            v.literal("new_convert"),
-            v.literal("first_timer"),
-            v.literal("established"),
-            v.literal("visitor"),
-            v.literal("inactive")
-          )
-        ),
-        shepherdId: v.id("users"),
-      })
-    ),
-  },
-  handler: async (ctx, args) => {
-    const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
-
-    const user = await ctx.db.get(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Check permissions - shepherds can create members, admins can create anyone
-    if (user.role !== "admin" && user.role !== "shepherd") {
-      throw new Error("Unauthorized - only shepherds and admins can create members");
-    }
-
-    const createdMembers: string[] = [];
-    const errors: Array<{ index: number; error: string }> = [];
-
-    for (let i = 0; i < args.members.length; i++) {
-      const memberData = args.members[i];
-
-      try {
-        // If shepherd, ensure they're assigning to themselves or check permissions
-        if (user.role === "shepherd" && memberData.shepherdId !== userId) {
-          errors.push({ index: i, error: "Unauthorized - shepherds can only assign members to themselves" });
-          continue;
-        }
-
-        // Generate custom ID
-        const customId = await generateCustomId(ctx);
-
-        // Create member
-        const memberId = await ctx.db.insert("members", {
-          firstName: memberData.firstName,
-          lastName: memberData.lastName,
-          preferredName: memberData.preferredName,
-          customId,
-          gender: memberData.gender,
-          dateOfBirth: memberData.dateOfBirth,
-          maritalStatus: memberData.maritalStatus,
-          weddingAnniversaryDate: memberData.weddingAnniversaryDate,
-          spouseName: memberData.spouseName,
-          childrenCount: memberData.childrenCount,
-          phone: memberData.phone,
-          whatsappNumber: memberData.whatsappNumber,
-          email: memberData.email,
-          address: memberData.address,
-          nearestLandmark: memberData.nearestLandmark,
-          city: memberData.city,
-          state: memberData.state,
-          zipCode: memberData.zipCode,
-          country: memberData.country,
-          dateJoinedChurch: memberData.dateJoinedChurch,
-          baptismDate: memberData.baptismDate,
-          occupation: memberData.occupation,
-          emergencyContactName: memberData.emergencyContactName,
-          emergencyContactPhone: memberData.emergencyContactPhone,
-          profilePhotoId: memberData.profilePhotoId,
-          notes: memberData.notes,
-          status: memberData.status || "established",
-          shepherdId: memberData.shepherdId,
-          attendanceRiskLevel: "none",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          createdBy: userId,
-          isActive: true,
-        });
-
-        createdMembers.push(memberId);
-      } catch (error: any) {
-        errors.push({ index: i, error: error.message || "Unknown error" });
-      }
-    }
-
-    return {
-      success: true,
-      created: createdMembers.length,
-      total: args.members.length,
-      memberIds: createdMembers,
-      errors: errors.length > 0 ? errors : undefined,
-    };
-  },
-});
-
-// Bulk delete members (soft delete)
-export const bulkDelete = mutation({
-  args: {
-    token: v.string(),
-    memberIds: v.array(v.id("members")),
-  },
-  handler: async (ctx, args) => {
-    const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
-
-    const user = await ctx.db.get(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Only admin can bulk delete
-    if (user.role !== "admin") {
-      throw new Error("Unauthorized - only admins can bulk delete members");
-    }
-
-    const deleted: string[] = [];
-    const errors: Array<{ memberId: string; error: string }> = [];
-
-    for (const memberId of args.memberIds) {
-      try {
-        const member = await ctx.db.get(memberId);
-        if (!member) {
-          errors.push({ memberId, error: "Member not found" });
-          continue;
-        }
-
-        // Soft delete
-        await ctx.db.patch(memberId, {
-          isActive: false,
-          updatedAt: Date.now(),
-        });
-
-        deleted.push(memberId);
-      } catch (error: any) {
-        errors.push({ memberId, error: error.message || "Unknown error" });
-      }
-    }
-
-    return {
-      success: true,
-      deleted: deleted.length,
-      total: args.memberIds.length,
-      memberIds: deleted,
-      errors: errors.length > 0 ? errors : undefined,
-    };
+    // Apply limit
+    const limit = args.limit || membersWithContact.length;
+    return membersWithContact.slice(0, limit);
   },
 });
 
@@ -857,14 +704,10 @@ export const assignForVisitation = mutation({
   },
 });
 
-// Get at-risk members (low attendance)
-export const getAtRiskMembers = query({
+// Get member statistics (admin only)
+export const getStats = query({
   args: {
     token: v.string(),
-    riskLevel: v.optional(
-      v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
-    ),
-    shepherdId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
@@ -877,12 +720,17 @@ export const getAtRiskMembers = query({
       throw new Error("User not found");
     }
 
+    // Determine which members the user can see
     let members = await ctx.db.query("members").collect();
 
-    // Filter by role permissions
     if (user.role === "shepherd") {
-      members = members.filter((m) => m.shepherdId === userId);
+      // Shepherds can only see their own members
+      members = await ctx.db
+        .query("members")
+        .withIndex("by_shepherd", (q) => q.eq("shepherdId", userId))
+        .collect();
     } else if (user.role === "pastor") {
+      // Pastors can see members of their shepherds
       const shepherds = await ctx.db
         .query("users")
         .withIndex("by_overseer", (q) => q.eq("overseerId", userId))
@@ -892,102 +740,113 @@ export const getAtRiskMembers = query({
     }
     // Admins can see all
 
-    // Filter by risk level
-    if (args.riskLevel) {
-      members = members.filter((m) => m.attendanceRiskLevel === args.riskLevel);
-    } else {
-      // Show all at-risk members (excluding "none")
-      members = members.filter(
-        (m) => m.attendanceRiskLevel && m.attendanceRiskLevel !== "none"
-      );
-    }
+    // Filter active members only
+    const activeMembers = members.filter((m) => m.isActive);
 
-    // Filter by shepherd if provided
-    if (args.shepherdId) {
-      members = members.filter((m) => m.shepherdId === args.shepherdId);
-    }
+    // Count by status
+    const statusCounts = {
+      new_convert: activeMembers.filter((m) => m.status === "new_convert").length,
+      first_timer: activeMembers.filter((m) => m.status === "first_timer").length,
+      established: activeMembers.filter((m) => m.status === "established").length,
+      visitor: activeMembers.filter((m) => m.status === "visitor").length,
+      inactive: activeMembers.filter((m) => m.status === "inactive").length,
+      total: activeMembers.length,
+    };
 
-    // Sort by risk level (high first) and last attendance date
-    members.sort((a, b) => {
-      const riskOrder = { high: 3, medium: 2, low: 1, none: 0 };
-      const aRisk = riskOrder[a.attendanceRiskLevel || "none"];
-      const bRisk = riskOrder[b.attendanceRiskLevel || "none"];
-      if (aRisk !== bRisk) return bRisk - aRisk;
-      const aLast = a.lastAttendanceDate || 0;
-      const bLast = b.lastAttendanceDate || 0;
-      return aLast - bLast; // Oldest first
+    // Count by year joined
+    const yearCounts: Record<number, number> = {};
+    activeMembers.forEach((m) => {
+      if (m.dateJoinedChurch) {
+        const year = new Date(m.dateJoinedChurch).getFullYear();
+        yearCounts[year] = (yearCounts[year] || 0) + 1;
+      }
     });
 
-    return members;
+    return {
+      statusCounts,
+      yearCounts,
+      totalMembers: activeMembers.length,
+    };
   },
 });
 
-// Calculate and update attendance risk levels (called by cron job)
+// Update attendance risk levels for all members (internal - called by cron)
 export const updateAttendanceRiskLevels = internalMutation({
+  args: {},
   handler: async (ctx) => {
+    // Get settings to determine risk thresholds
+    const settingsDoc = await ctx.db
+      .query("settings")
+      .first();
+
+    // Use settings if available, otherwise use defaults
+    const lowRiskDays = settingsDoc?.lowRiskDays ?? 14;
+    const mediumRiskDays = settingsDoc?.mediumRiskDays ?? 30;
+    const highRiskDays = settingsDoc?.highRiskDays ?? 60;
+    const enableAtRiskTracking = settingsDoc?.enableAtRiskTracking ?? true;
+
+    // If at-risk tracking is disabled, don't update risk levels
+    if (!enableAtRiskTracking) {
+      return { updated: 0 };
+    }
+
+    // Get all active members
+    const members = await ctx.db
+      .query("members")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
     const now = Date.now();
-    const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000; // 2 weeks
-    const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000; // 1 month
-    const twoMonthsAgo = now - 60 * 24 * 60 * 60 * 1000; // 2 months
+    let updatedCount = 0;
 
-    const allMembers = await ctx.db.query("members").collect();
-    let updated = 0;
+    // Update risk level for each member
+    for (const member of members) {
+      let newRiskLevel: "none" | "low" | "medium" | "high" = "none";
 
-    for (const member of allMembers) {
-      if (!member.isActive) continue;
+      if (member.lastAttendanceDate) {
+        // Calculate days since last attendance
+        const daysSinceLastAttendance = Math.floor(
+          (now - member.lastAttendanceDate) / (1000 * 60 * 60 * 24)
+        );
 
-      let riskLevel: "none" | "low" | "medium" | "high" = "none";
-      const lastAttendance = member.lastAttendanceDate || 0;
-
-      if (lastAttendance === 0) {
-        // Never attended - check how long since joining
-        const daysSinceJoining = (now - member.dateJoinedChurch) / (24 * 60 * 60 * 1000);
-        if (daysSinceJoining >= 60) {
-          riskLevel = "high";
-        } else if (daysSinceJoining >= 30) {
-          riskLevel = "medium";
-        } else if (daysSinceJoining >= 14) {
-          riskLevel = "low";
+        // Determine risk level based on days since last attendance
+        if (daysSinceLastAttendance >= highRiskDays) {
+          newRiskLevel = "high";
+        } else if (daysSinceLastAttendance >= mediumRiskDays) {
+          newRiskLevel = "medium";
+        } else if (daysSinceLastAttendance >= lowRiskDays) {
+          newRiskLevel = "low";
+        } else {
+          newRiskLevel = "none";
         }
       } else {
-        // Has attended before - check time since last attendance
-        const daysSinceLastAttendance = (now - lastAttendance) / (24 * 60 * 60 * 1000);
-        if (daysSinceLastAttendance >= 60) {
-          riskLevel = "high";
-        } else if (daysSinceLastAttendance >= 30) {
-          riskLevel = "medium";
-        } else if (daysSinceLastAttendance >= 14) {
-          riskLevel = "low";
-        }
-      }
+        // If member has never attended, check how long since they joined
+        if (member.dateJoinedChurch) {
+          const daysSinceJoined = Math.floor(
+            (now - member.dateJoinedChurch) / (1000 * 60 * 60 * 24)
+          );
 
-      // Only update if risk level changed
-      if (member.attendanceRiskLevel !== riskLevel) {
-        await ctx.db.patch(member._id, {
-          attendanceRiskLevel: riskLevel,
-          updatedAt: Date.now(),
-        });
-        updated++;
-
-        // Create notification for shepherd if risk level is medium or high
-        if (riskLevel === "medium" || riskLevel === "high") {
-          const shepherd = await ctx.db.get(member.shepherdId);
-          if (shepherd && shepherd.isActive) {
-            await ctx.db.insert("notifications", {
-              userId: member.shepherdId,
-              type: "reminder",
-              title: "Member At-Risk Alert",
-              message: `${member.firstName} ${member.lastName} has been flagged as ${riskLevel} risk due to low attendance`,
-              relatedId: member._id,
-              relatedType: "member",
-              isRead: false,
-              createdAt: Date.now(),
-            });
+          // For new members, only mark as risk if they've been inactive for a while
+          if (daysSinceJoined >= highRiskDays) {
+            newRiskLevel = "high";
+          } else if (daysSinceJoined >= mediumRiskDays) {
+            newRiskLevel = "medium";
+          } else if (daysSinceJoined >= lowRiskDays) {
+            newRiskLevel = "low";
           }
         }
       }
+
+      // Only update if risk level has changed
+      if (member.attendanceRiskLevel !== newRiskLevel) {
+        await ctx.db.patch(member._id, {
+          attendanceRiskLevel: newRiskLevel,
+          updatedAt: now,
+        });
+        updatedCount++;
+      }
     }
 
-    return { updated, total: allMembers.length };
+    return { updated: updatedCount };
   },
 });
