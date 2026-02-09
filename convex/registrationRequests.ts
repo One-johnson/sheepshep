@@ -79,6 +79,12 @@ export const approve = mutation({
     }
 
     // Create the user account
+    // Ensure gender is valid (filter out "other" if present)
+    const validGender: "male" | "female" | undefined = 
+      request.gender === "male" || request.gender === "female" 
+        ? request.gender 
+        : undefined;
+
     const newUserId = await ctx.db.insert("users", {
       email: request.email,
       name: request.name,
@@ -90,7 +96,7 @@ export const approve = mutation({
       phone: request.phone,
       whatsappNumber: request.whatsappNumber,
       preferredName: request.preferredName,
-      gender: request.gender,
+      gender: validGender,
       dateOfBirth: request.dateOfBirth,
       commissioningDate: request.commissioningDate,
       occupation: request.occupation,

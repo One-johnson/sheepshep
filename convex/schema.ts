@@ -17,7 +17,7 @@ export default defineSchema({
     whatsappNumber: v.optional(v.string()), // WhatsApp Number
     // Personal information
     preferredName: v.optional(v.string()), // Preferred Name
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()), // Unix timestamp
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()), // Ordination/Commissioning Date (Unix timestamp)
@@ -31,6 +31,7 @@ export default defineSchema({
     commissioningDate: v.optional(v.number()), // Join Date / Commissioning Date (Unix timestamp)
     occupation: v.optional(v.string()), // Occupation / Ministry Role (e.g., "Teacher", "Business Owner", "Worship Leader")
     assignedZone: v.optional(v.string()), // Assigned Zone / Area
+    educationalBackground: v.optional(v.string()), // Educational Background / Highest Education Level
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ), // Status: Active / On Leave / Inactive (defaults to "active" if isActive is true)
@@ -39,6 +40,19 @@ export default defineSchema({
     // For pastors - track which shepherds they oversee
     // For shepherds - track which pastor oversees them
     overseerId: v.optional(v.id("users")), // Pastor who oversees this shepherd
+    // Marital information
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()), // Year of marriage (Unix timestamp)
+    spouseName: v.optional(v.string()), // Spouse name (if married)
+    spouseOccupation: v.optional(v.string()), // Occupation of spouse
+    childrenCount: v.optional(v.number()), // Number of children
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"])
@@ -344,7 +358,7 @@ export default defineSchema({
     whatsappNumber: v.optional(v.string()),
     // Personal information
     preferredName: v.optional(v.string()),
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()),
     // Shepherd-specific fields
     commissioningDate: v.optional(v.number()),

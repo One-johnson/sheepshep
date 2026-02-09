@@ -1,6 +1,8 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { Id } from "./_generated/dataModel";
+import * as bcrypt from "bcryptjs";
 
 // List all users (admin only)
 export const list = query({
@@ -88,5 +90,226 @@ export const deleteUser = mutation({
     });
 
     return { success: true };
+  },
+});
+
+// Get user statistics (admin only)
+export const getStats = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    const allUsers = await ctx.db.query("users").collect();
+    const members = await ctx.db.query("members").collect();
+
+    return {
+      totalUsers: allUsers.length,
+      totalAdmins: allUsers.filter((u) => u.role === "admin" && u.isActive).length,
+      totalPastors: allUsers.filter((u) => u.role === "pastor" && u.isActive).length,
+      totalShepherds: allUsers.filter((u) => u.role === "shepherd" && u.isActive).length,
+      totalMembers: members.filter((m) => m.isActive).length,
+      activeUsers: allUsers.filter((u) => u.isActive).length,
+      inactiveUsers: allUsers.filter((u) => !u.isActive).length,
+    };
+  },
+});
+
+// Bulk delete users (admin only)
+export const bulkDelete = mutation({
+  args: {
+    token: v.string(),
+    userIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(currentUserId);
+    if (!user || user.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    const deleted: string[] = [];
+    const errors: Array<{ userId: string; error: string }> = [];
+
+    for (const userId of args.userIds) {
+      try {
+        const targetUser = await ctx.db.get(userId);
+        if (!targetUser) {
+          errors.push({ userId, error: "User not found" });
+          continue;
+        }
+
+        // Prevent deleting the first admin
+        if (targetUser.isFirstAdmin) {
+          errors.push({ userId, error: "Cannot delete the first admin" });
+          continue;
+        }
+
+        // Prevent deleting yourself
+        if (userId === currentUserId) {
+          errors.push({ userId, error: "Cannot delete your own account" });
+          continue;
+        }
+
+        // Soft delete
+        await ctx.db.patch(userId, {
+          isActive: false,
+          updatedAt: Date.now(),
+        });
+
+        deleted.push(userId);
+      } catch (error: any) {
+        errors.push({ userId, error: error.message || "Unknown error" });
+      }
+    }
+
+    return {
+      success: true,
+      deleted: deleted.length,
+      total: args.userIds.length,
+      userIds: deleted,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  },
+});
+
+// Bulk add users (admin only)
+export const bulkAdd = mutation({
+  args: {
+    token: v.string(),
+    users: v.array(
+      v.object({
+        email: v.string(),
+        password: v.string(),
+        name: v.string(),
+        role: v.union(v.literal("admin"), v.literal("pastor"), v.literal("shepherd")),
+        phone: v.optional(v.string()),
+        whatsappNumber: v.optional(v.string()),
+        preferredName: v.optional(v.string()),
+        gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+        dateOfBirth: v.optional(v.number()),
+        ordinationDate: v.optional(v.number()),
+        homeAddress: v.optional(v.string()),
+        qualification: v.optional(v.string()),
+        yearsInMinistry: v.optional(v.number()),
+        ministryFocus: v.optional(v.array(v.string())),
+        supervisedZones: v.optional(v.array(v.string())),
+        notes: v.optional(v.string()),
+        commissioningDate: v.optional(v.number()),
+        occupation: v.optional(v.string()),
+        assignedZone: v.optional(v.string()),
+        educationalBackground: v.optional(v.string()),
+        status: v.optional(
+          v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
+        ),
+        overseerId: v.optional(v.id("users")),
+        profilePhotoId: v.optional(v.id("_storage")),
+        // Marital information
+        maritalStatus: v.optional(
+          v.union(
+            v.literal("single"),
+            v.literal("married"),
+            v.literal("divorced"),
+            v.literal("widowed")
+          )
+        ),
+        weddingAnniversaryDate: v.optional(v.number()),
+        spouseName: v.optional(v.string()),
+        spouseOccupation: v.optional(v.string()),
+        childrenCount: v.optional(v.number()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(currentUserId);
+    if (!user || user.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    const created: string[] = [];
+    const errors: Array<{ email: string; error: string }> = [];
+
+    for (const userData of args.users) {
+      try {
+        // Check if user already exists
+        const existingUser = await ctx.db
+          .query("users")
+          .withIndex("by_email", (q) => q.eq("email", userData.email))
+          .first();
+
+        if (existingUser) {
+          errors.push({ email: userData.email, error: "User already exists" });
+          continue;
+        }
+
+        // Hash password
+        const passwordHash = bcrypt.hashSync(userData.password, 10);
+
+        // Create user
+        const userId = await ctx.db.insert("users", {
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          passwordHash,
+          isActive: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          phone: userData.phone,
+          whatsappNumber: userData.whatsappNumber,
+          preferredName: userData.preferredName,
+          gender: userData.gender,
+          dateOfBirth: userData.dateOfBirth,
+          ordinationDate: userData.ordinationDate,
+          homeAddress: userData.homeAddress,
+          qualification: userData.qualification,
+          yearsInMinistry: userData.yearsInMinistry,
+          ministryFocus: userData.ministryFocus,
+          supervisedZones: userData.supervisedZones,
+          notes: userData.notes,
+          commissioningDate: userData.commissioningDate,
+          occupation: userData.occupation,
+          assignedZone: userData.assignedZone,
+          educationalBackground: userData.educationalBackground,
+          status: userData.status,
+          overseerId: userData.overseerId,
+          profilePhotoId: userData.profilePhotoId,
+          maritalStatus: userData.maritalStatus,
+          weddingAnniversaryDate: userData.weddingAnniversaryDate,
+          spouseName: userData.spouseName,
+          spouseOccupation: userData.spouseOccupation,
+          childrenCount: userData.childrenCount,
+        });
+
+        created.push(userId);
+      } catch (error: any) {
+        errors.push({ email: userData.email, error: error.message || "Unknown error" });
+      }
+    }
+
+    return {
+      success: true,
+      created: created.length,
+      total: args.users.length,
+      userIds: created,
+      errors: errors.length > 0 ? errors : undefined,
+    };
   },
 });

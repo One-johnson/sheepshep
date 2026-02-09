@@ -71,6 +71,7 @@ export const cleanupExpiredSessions = mutation({
 // For shepherd: creates registration request for approval
 export const register = mutation({
   args: {
+    token: v.optional(v.string()),
     email: v.string(),
     password: v.string(),
     name: v.string(), // Full Name
@@ -80,7 +81,7 @@ export const register = mutation({
     whatsappNumber: v.optional(v.string()),
     // Personal information
     preferredName: v.optional(v.string()),
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()), // Unix timestamp
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()), // Unix timestamp
@@ -94,13 +95,44 @@ export const register = mutation({
     commissioningDate: v.optional(v.number()), // Unix timestamp
     occupation: v.optional(v.string()),
     assignedZone: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
     // Relationships
     overseerId: v.optional(v.id("users")), // For shepherds, assign a pastor
+    profilePhotoId: v.optional(v.id("_storage")),
+    // Marital information
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()), // Year of marriage (Unix timestamp)
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Verify token and check admin access for admin/pastor creation
+    if (args.role === "admin" || args.role === "pastor") {
+      if (!args.token) {
+        throw new Error("Unauthorized - token required to create admins or pastors");
+      }
+      const currentUserId = await verifyToken(ctx, args.token);
+      if (!currentUserId) {
+        throw new Error("Unauthorized");
+      }
+
+      const currentUser = await ctx.db.get(currentUserId);
+      if (!currentUser || currentUser.role !== "admin") {
+        throw new Error("Unauthorized - admin access required to create admins or pastors");
+      }
+    }
+
     // Check if user already exists
     const existingUser = await ctx.db
       .query("users")
@@ -157,9 +189,16 @@ export const register = mutation({
           commissioningDate: args.commissioningDate,
           occupation: args.occupation,
           assignedZone: args.assignedZone,
+          educationalBackground: args.educationalBackground,
           status: args.status,
-          overseerId: args.overseerId,
-        });
+        overseerId: args.overseerId,
+        profilePhotoId: args.profilePhotoId,
+        maritalStatus: args.maritalStatus,
+        weddingAnniversaryDate: args.weddingAnniversaryDate,
+        spouseName: args.spouseName,
+        spouseOccupation: args.spouseOccupation,
+        childrenCount: args.childrenCount,
+      });
 
         return { userId, success: true, isFirstAdmin: true };
       }
@@ -287,8 +326,15 @@ export const register = mutation({
       commissioningDate: args.commissioningDate,
       occupation: args.occupation,
       assignedZone: args.assignedZone,
+      educationalBackground: args.educationalBackground,
       status: args.status,
       overseerId: args.overseerId,
+      profilePhotoId: args.profilePhotoId,
+      maritalStatus: args.maritalStatus,
+      weddingAnniversaryDate: args.weddingAnniversaryDate,
+      spouseName: args.spouseName,
+      spouseOccupation: args.spouseOccupation,
+      childrenCount: args.childrenCount,
     });
 
     return { userId, success: true };
@@ -466,7 +512,7 @@ export const updateProfile = mutation({
     whatsappNumber: v.optional(v.string()),
     profilePhotoId: v.optional(v.id("_storage")),
     // Personal information
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()),
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()),
@@ -480,6 +526,7 @@ export const updateProfile = mutation({
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
     assignedZone: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
@@ -513,6 +560,7 @@ export const updateProfile = mutation({
     if (args.commissioningDate !== undefined) updates.commissioningDate = args.commissioningDate;
     if (args.occupation !== undefined) updates.occupation = args.occupation;
     if (args.assignedZone !== undefined) updates.assignedZone = args.assignedZone;
+    if (args.educationalBackground !== undefined) updates.educationalBackground = args.educationalBackground;
     if (args.status !== undefined) updates.status = args.status;
 
     await ctx.db.patch(userId, updates);
@@ -540,7 +588,7 @@ export const updateUserProfile = mutation({
     whatsappNumber: v.optional(v.string()),
     profilePhotoId: v.optional(v.id("_storage")),
     // Personal information
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()),
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()),
@@ -554,12 +602,27 @@ export const updateUserProfile = mutation({
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
     assignedZone: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
     // Admin fields
     isActive: v.optional(v.boolean()),
     overseerId: v.optional(v.id("users")),
+    role: v.optional(v.union(v.literal("admin"), v.literal("pastor"), v.literal("shepherd"))),
+    // Marital information
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()),
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const currentUserId = await verifyToken(ctx, args.token);
@@ -591,7 +654,15 @@ export const updateUserProfile = mutation({
       if (args.isActive === false) {
         throw new Error("Cannot deactivate the first admin");
       }
+      if (args.role !== undefined && args.role !== targetUserDoc.role) {
+        throw new Error("Cannot change the role of the first admin");
+      }
       // Allow other updates but prevent role change or deletion
+    }
+    
+    // Prevent changing your own role
+    if (args.role !== undefined && args.userId === currentUserId) {
+      throw new Error("Cannot change your own role");
     }
 
     const updates: any = {
@@ -616,9 +687,16 @@ export const updateUserProfile = mutation({
     if (args.commissioningDate !== undefined) updates.commissioningDate = args.commissioningDate;
     if (args.occupation !== undefined) updates.occupation = args.occupation;
     if (args.assignedZone !== undefined) updates.assignedZone = args.assignedZone;
+    if (args.educationalBackground !== undefined) updates.educationalBackground = args.educationalBackground;
     if (args.status !== undefined) updates.status = args.status;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.overseerId !== undefined) updates.overseerId = args.overseerId;
+    if (args.role !== undefined) updates.role = args.role;
+    if (args.maritalStatus !== undefined) updates.maritalStatus = args.maritalStatus;
+    if (args.weddingAnniversaryDate !== undefined) updates.weddingAnniversaryDate = args.weddingAnniversaryDate;
+    if (args.spouseName !== undefined) updates.spouseName = args.spouseName;
+    if (args.spouseOccupation !== undefined) updates.spouseOccupation = args.spouseOccupation;
+    if (args.childrenCount !== undefined) updates.childrenCount = args.childrenCount;
 
     await ctx.db.patch(args.userId, updates);
 

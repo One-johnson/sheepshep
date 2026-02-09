@@ -4,20 +4,18 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
+  Home,
   Users,
-  Bell,
-  Settings,
   ClipboardList,
-  FileText,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   {
-    title: "Dashboard",
+    title: "Home",
     url: "/dashboard",
-    icon: LayoutDashboard,
+    icon: Home,
   },
   {
     title: "Users",
@@ -30,19 +28,9 @@ const navItems = [
     icon: ClipboardList,
   },
   {
-    title: "Notifications",
-    url: "/dashboard/notifications",
-    icon: Bell,
-  },
-  {
-    title: "Settings",
-    url: "/dashboard/settings",
-    icon: Settings,
-  },
-  {
-    title: "Audit Log",
-    url: "/dashboard/audit-log",
-    icon: FileText,
+    title: "More",
+    url: "/dashboard/more",
+    icon: MoreHorizontal,
   },
 ];
 
