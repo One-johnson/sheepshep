@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Id } from "../../../convex/_generated/dataModel";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Eye, Mail, Phone, Calendar, MapPin, User, Shield } from "lucide-react";
 
 import {
@@ -13,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface ViewUserDialogProps {
   open: boolean;
@@ -39,6 +42,7 @@ interface ViewUserDialogProps {
     assignedZone?: string;
     status?: "active" | "on_leave" | "inactive";
     notes?: string;
+    profilePhotoId?: Id<"_storage">;
     createdAt: number;
     updatedAt: number;
   };
@@ -65,7 +69,23 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
   }
 }
 
-export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps): JSX.Element {
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  
+  const photoUrl = useQuery(
+    api.storage.getFileUrl,
+    token && user.profilePhotoId ? { token, storageId: user.profilePhotoId } : "skip"
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -78,39 +98,41 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Profile Photo and Name Header */}
+          <div className="flex items-center gap-4 pb-4 border-b">
+            <Avatar className="h-12 w-12">
+              {photoUrl ? (
+                <AvatarImage src={photoUrl} alt={user.name} />
+              ) : (
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                  {getInitials(user.name)}
+                </AvatarFallback>
+              )}
+            </Avatar>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-2xl font-bold">{user.name}</h2>
+                <Badge variant={getRoleBadgeVariant(user.role)}>
+                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                </Badge>
+              </div>
+              {user.preferredName && (
+                <p className="text-sm text-muted-foreground">({user.preferredName})</p>
+              )}
+              {user.email && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <Mail className="h-3 w-3" />
+                  {user.email}
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Basic Information */}
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold mb-3">Basic Information</h3>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-muted-foreground">Name</div>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <div className="font-medium">{user.name}</div>
-                    {user.preferredName && (
-                      <span className="text-sm text-muted-foreground">
-                        ({user.preferredName})
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-muted-foreground">Email</div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <div>{user.email}</div>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-muted-foreground">Role</div>
-                  <Badge variant={getRoleBadgeVariant(user.role)}>
-                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                  </Badge>
-                </div>
-
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-muted-foreground">Status</div>
                   <div className="flex items-center gap-2">

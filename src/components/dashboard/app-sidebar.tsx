@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   LayoutDashboard,
   Users,
+  UserCheck,
   Bell,
   Settings,
   ClipboardList,
@@ -32,6 +33,11 @@ const menuItems = [
     title: "Users",
     url: "/dashboard/users",
     icon: Users,
+  },
+  {
+    title: "Members",
+    url: "/dashboard/members",
+    icon: UserCheck,
   },
   {
     title: "Assignments",
@@ -67,7 +73,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.url || (item.url === "/dashboard" && pathname === "/dashboard");
+                const isActive = pathname === item.url || pathname?.startsWith(item.url + "/") || (item.url === "/dashboard" && pathname === "/dashboard");
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton

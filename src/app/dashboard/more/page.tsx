@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Settings,
   User,
+  UserCheck,
   Moon,
   Sun,
   FileText,
@@ -54,6 +55,11 @@ export default function MorePage() {
       title: "Profile",
       icon: User,
       onClick: () => router.push("/dashboard/profile"),
+    },
+    {
+      title: "Members",
+      icon: UserCheck,
+      onClick: () => router.push("/dashboard/members"),
     },
     {
       title: "Audit Log",
