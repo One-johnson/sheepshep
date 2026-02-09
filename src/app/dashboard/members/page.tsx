@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { StatsCardSkeleton, ChartCardSkeleton } from "@/components/ui/card-skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -871,7 +873,18 @@ export default function MembersPage() {
       </div>
 
       {/* Stats Cards */}
-      {stats && (
+      {isLoading ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+            <StatsCardSkeleton count={6} showDescription={false} />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ChartCardSkeleton />
+            <ChartCardSkeleton />
+          </div>
+          <ChartCardSkeleton />
+        </>
+      ) : stats ? (
         <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
           <Card>
@@ -1039,7 +1052,7 @@ export default function MembersPage() {
           </CardContent>
         </Card>
         </>
-      )}
+      ) : null}
 
       {/* Filters */}
       <Card>
@@ -1130,9 +1143,7 @@ export default function MembersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading members...</p>
-            </div>
+            <TableSkeleton columns={6} rows={8} showCheckbox={true} />
           ) : filteredMembers && filteredMembers.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

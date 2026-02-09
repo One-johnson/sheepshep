@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import * as bcrypt from "bcryptjs";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { createNotification, notifyAdmins } from "./notificationHelpers";
 
 // Generate session token without crypto (using Math.random)
 function generateSessionToken(): string {
@@ -337,6 +338,16 @@ export const register = mutation({
       childrenCount: args.childrenCount,
     });
 
+    // Notify admins about new user creation
+    await notifyAdmins(
+      ctx,
+      "user_created",
+      "New User Created",
+      `${args.name} (${args.email}) has been created as ${args.role}`,
+      userId,
+      "user"
+    );
+
     return { userId, success: true };
   },
 });
@@ -570,6 +581,17 @@ export const updateProfile = mutation({
       throw new Error("User not found");
     }
 
+    // Notify user about profile update
+    await createNotification(
+      ctx,
+      userId,
+      "profile_updated",
+      "Profile Updated",
+      "Your profile information has been updated",
+      userId,
+      "user"
+    );
+
     const userDoc = updatedUser as any;
     const { passwordHash: _, ...userWithoutPassword } = userDoc;
     return userWithoutPassword;
@@ -704,6 +726,27 @@ export const updateUserProfile = mutation({
     if (!updatedUser) {
       throw new Error("User not found");
     }
+
+    // Notify the user about profile update
+    await createNotification(
+      ctx,
+      args.userId,
+      "user_updated",
+      "Profile Updated",
+      `Your profile has been updated by ${currentUser.name}`,
+      args.userId,
+      "user"
+    );
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "user_updated",
+      "User Profile Updated",
+      `${currentUser.name} updated ${updatedUser.name}'s profile`,
+      args.userId,
+      "user"
+    );
 
     const updatedUserDoc = updatedUser as any;
     const { passwordHash: _, ...userWithoutPassword } = updatedUserDoc;

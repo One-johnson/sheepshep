@@ -1,28 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
-
-// Helper function to create notification
-async function createNotification(
-  ctx: any,
-  userId: string,
-  type: string,
-  title: string,
-  message: string,
-  relatedId?: string,
-  relatedType?: string
-) {
-  await ctx.db.insert("notifications", {
-    userId: userId as any,
-    type: type as any,
-    title,
-    message,
-    relatedId,
-    relatedType: relatedType as any,
-    isRead: false,
-    createdAt: Date.now(),
-  });
-}
+import { createNotification, notifyAdmins } from "./notificationHelpers";
 
 // Create event
 export const create = mutation({
@@ -95,6 +74,16 @@ export const create = mutation({
       isSent: false,
       createdAt: Date.now(),
     });
+
+    // Notify admins about event creation
+    await notifyAdmins(
+      ctx,
+      "event_created",
+      "New Event Created",
+      `${user.name} created a new event: ${args.title}`,
+      eventId,
+      "event"
+    );
 
     return { eventId };
   },
@@ -233,7 +222,22 @@ export const update = mutation({
 
     await ctx.db.patch(args.eventId, updates);
 
-    return await ctx.db.get(args.eventId);
+    const updatedEvent = await ctx.db.get(args.eventId);
+
+    // Notify organizer about event update
+    if (event.organizerId) {
+      await createNotification(
+        ctx,
+        event.organizerId,
+        "event_updated",
+        "Event Updated",
+        `Event "${event.title}" has been updated`,
+        args.eventId,
+        "event"
+      );
+    }
+
+    return updatedEvent;
   },
 });
 
@@ -269,6 +273,29 @@ export const remove = mutation({
       isActive: false,
       updatedAt: Date.now(),
     });
+
+    // Notify organizer about event deletion
+    if (event.organizerId) {
+      await createNotification(
+        ctx,
+        event.organizerId,
+        "event_deleted",
+        "Event Deleted",
+        `Event "${event.title}" has been deleted`,
+        args.eventId,
+        "event"
+      );
+    }
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "event_deleted",
+      "Event Deleted",
+      `${user.name} deleted event: ${event.title}`,
+      args.eventId,
+      "event"
+    );
 
     return { success: true };
   },

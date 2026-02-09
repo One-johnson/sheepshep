@@ -57,15 +57,28 @@ export const list = query({
     const limit = args.limit || 50;
     const paginatedLogs = logs.slice(0, limit);
 
-    // Get user details for each log
+    // Get user details and entity custom IDs for each log
     const logsWithUsers = await Promise.all(
       paginatedLogs.map(async (log) => {
         const logUser = await ctx.db.get(log.userId);
+        
+        // Fetch customId for members
+        let entityCustomId: string | undefined;
+        if (log.entityType === "member" && log.entityId) {
+          try {
+            const member = await ctx.db.get(log.entityId as Id<"members">);
+            entityCustomId = member?.customId;
+          } catch {
+            // Entity might not exist anymore, ignore
+          }
+        }
+        
         return {
           ...log,
           userName: logUser?.name || "Unknown",
           userEmail: logUser?.email || "Unknown",
           userRole: logUser?.role || "Unknown",
+          entityCustomId,
         };
       })
     );

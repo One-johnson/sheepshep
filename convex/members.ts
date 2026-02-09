@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { createNotification, notifyAdmins } from "./notificationHelpers";
 
 // Generate custom member ID (e.g., MBR-0425 or 2025-123)
 async function generateCustomId(ctx: any): Promise<string> {
@@ -150,7 +151,31 @@ export const create = mutation({
       isActive: true,
     });
 
-    return await ctx.db.get(memberId);
+    const member = await ctx.db.get(memberId);
+    const memberName = `${args.firstName} ${args.lastName}`;
+
+    // Notify the shepherd
+    await createNotification(
+      ctx,
+      args.shepherdId,
+      "member_created",
+      "New Member Added",
+      `${memberName} has been added to your care`,
+      memberId,
+      "member"
+    );
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "member_created",
+      "New Member Created",
+      `${user.name} created a new member: ${memberName}`,
+      memberId,
+      "member"
+    );
+
+    return member;
   },
 });
 
@@ -379,7 +404,36 @@ export const update = mutation({
 
     await ctx.db.patch(args.memberId, updates);
 
-    return await ctx.db.get(args.memberId);
+    const updatedMember = await ctx.db.get(args.memberId);
+    const memberName = updatedMember ? `${updatedMember.firstName} ${updatedMember.lastName}` : "Member";
+
+    // Notify the shepherd if member was updated
+    if (updatedMember?.shepherdId) {
+      await createNotification(
+        ctx,
+        updatedMember.shepherdId,
+        "member_updated",
+        "Member Updated",
+        `${memberName}'s information has been updated`,
+        args.memberId,
+        "member"
+      );
+    }
+
+    // If shepherd changed, notify both old and new shepherd
+    if (args.shepherdId !== undefined && args.shepherdId !== member.shepherdId && member.shepherdId) {
+      await createNotification(
+        ctx,
+        member.shepherdId,
+        "member_assigned",
+        "Member Reassigned",
+        `${memberName} has been reassigned to another shepherd`,
+        args.memberId,
+        "member"
+      );
+    }
+
+    return updatedMember;
   },
 });
 
@@ -415,6 +469,31 @@ export const remove = mutation({
       isActive: false,
       updatedAt: Date.now(),
     });
+
+    const memberName = `${member.firstName} ${member.lastName}`;
+
+    // Notify the shepherd
+    if (member.shepherdId) {
+      await createNotification(
+        ctx,
+        member.shepherdId,
+        "member_deleted",
+        "Member Deleted",
+        `${memberName} has been deleted`,
+        args.memberId,
+        "member"
+      );
+    }
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "member_deleted",
+      "Member Deleted",
+      `${user.name} deleted member: ${memberName}`,
+      args.memberId,
+      "member"
+    );
 
     return { success: true };
   },
@@ -453,6 +532,21 @@ export const bulkDelete = mutation({
           isActive: false,
           updatedAt: Date.now(),
         });
+
+        const memberName = `${member.firstName} ${member.lastName}`;
+
+        // Notify the shepherd
+        if (member.shepherdId) {
+          await createNotification(
+            ctx,
+            member.shepherdId,
+            "member_deleted",
+            "Member Deleted",
+            `${memberName} has been deleted`,
+            memberId,
+            "member"
+          );
+        }
 
         deleted.push(memberId);
       } catch (error: any) {
@@ -689,16 +783,35 @@ export const assignForVisitation = mutation({
     });
 
     // Create notification for shepherd
-    await ctx.db.insert("notifications", {
-      userId: args.shepherdId,
-      type: "assignment_assigned",
-      title: "New Visitation Assignment",
-      message: `You have been assigned to visit ${member.firstName} ${member.lastName} (${member.status === "new_convert" ? "New Convert" : "First Timer"})`,
-      relatedId: assignmentId,
-      relatedType: "assignment",
-      isRead: false,
-      createdAt: Date.now(),
-    });
+    try {
+      await createNotification(
+        ctx,
+        args.shepherdId,
+        "assignment_assigned",
+        "New Visitation Assignment",
+        `You have been assigned to visit ${member.firstName} ${member.lastName} (${member.status === "new_convert" ? "New Convert" : "First Timer"})`,
+        assignmentId,
+        "assignment"
+      );
+    } catch (error) {
+      console.error("Failed to create shepherd notification:", error);
+    }
+
+    // Notify the creator (admin/pastor) about successful assignment creation
+    try {
+      const memberName = `${member.firstName} ${member.lastName}`;
+      await createNotification(
+        ctx,
+        userId,
+        "assignment_assigned",
+        "Visitation Assignment Created",
+        `You successfully created visitation assignment for ${memberName}`,
+        assignmentId,
+        "assignment"
+      );
+    } catch (error) {
+      console.error("Failed to create creator notification:", error);
+    }
 
     return { assignmentId, success: true };
   },

@@ -89,6 +89,17 @@ export const deleteUser = mutation({
       updatedAt: Date.now(),
     });
 
+    // Notify admins about user deletion
+    const { notifyAdmins } = await import("./notificationHelpers");
+    await notifyAdmins(
+      ctx,
+      "user_deleted",
+      "User Deleted",
+      `${user.name} deleted user: ${targetUser.name} (${targetUser.email})`,
+      args.userId,
+      "user"
+    );
+
     return { success: true };
   },
 });
@@ -169,6 +180,17 @@ export const bulkDelete = mutation({
           isActive: false,
           updatedAt: Date.now(),
         });
+
+        // Notify admins about user deletion
+        const { notifyAdmins } = await import("./notificationHelpers");
+        await notifyAdmins(
+          ctx,
+          "user_deleted",
+          "User Deleted",
+          `${user.name} deleted user: ${targetUser.name} (${targetUser.email})`,
+          userId,
+          "user"
+        );
 
         deleted.push(userId);
       } catch (error: any) {

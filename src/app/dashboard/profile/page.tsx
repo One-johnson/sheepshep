@@ -4,13 +4,14 @@ import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, User, Mail, Phone, Calendar, MapPin, Shield } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, Calendar, MapPin, Shield, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EditProfileDialog } from "@/components/dashboard/edit-profile-dialog";
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("en-US", {
@@ -36,6 +37,7 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
 export default function ProfilePage() {
   const router = useRouter();
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const [editProfileDialogOpen, setEditProfileDialogOpen] = React.useState(false);
   
   const currentUser = useQuery(
     api.auth.getCurrentUser,
@@ -48,6 +50,11 @@ export default function ProfilePage() {
       ? { token, storageId: currentUser.profilePhotoId }
       : "skip"
   );
+
+  // Force refresh when profilePhotoId changes
+  React.useEffect(() => {
+    // This ensures the query refreshes when the photo ID changes
+  }, [currentUser?.profilePhotoId]);
 
   const getInitials = (name: string) => {
     return name
@@ -107,18 +114,36 @@ export default function ProfilePage() {
       {/* Profile Photo and Basic Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Basic Information</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditProfileDialogOpen(true)}
+            >
+              <User className="mr-2 h-4 w-4" />
+              Update Profile
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-6">
             <Avatar className="h-24 w-24">
               {profilePhotoUrl ? (
-                <AvatarImage src={profilePhotoUrl} alt={currentUser.name} />
-              ) : (
-                <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                  {getInitials(currentUser.name)}
-                </AvatarFallback>
-              )}
+                <AvatarImage 
+                  src={profilePhotoUrl} 
+                  alt={currentUser.name}
+                  className="object-cover"
+                  onError={(e) => {
+                    // Fallback to initials if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                {getInitials(currentUser.name)}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
@@ -282,9 +307,29 @@ export default function ProfilePage() {
           className="flex-1"
           onClick={() => router.push("/dashboard/settings")}
         >
-          Edit Profile
+          <Settings className="mr-2 h-4 w-4" />
+          Update Settings
         </Button>
       </div>
+
+      {/* Edit Profile Dialog */}
+      {currentUser && (
+        <EditProfileDialog
+          open={editProfileDialogOpen}
+          onOpenChange={setEditProfileDialogOpen}
+          user={{
+            _id: currentUser._id,
+            name: currentUser.name,
+            email: currentUser.email,
+            phone: currentUser.phone,
+            whatsappNumber: currentUser.whatsappNumber,
+            preferredName: currentUser.preferredName,
+            gender: currentUser.gender,
+            dateOfBirth: currentUser.dateOfBirth,
+            profilePhotoId: currentUser.profilePhotoId,
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   Settings,
   ClipboardList,
   FileText,
+  CalendarCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -43,6 +44,11 @@ const menuItems = [
     title: "Assignments",
     url: "/dashboard/assignments",
     icon: ClipboardList,
+  },
+  {
+    title: "Attendance",
+    url: "/dashboard/attendance",
+    icon: CalendarCheck,
   },
   {
     title: "Notifications",

@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { StatsCardSkeleton } from "@/components/ui/card-skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,7 @@ import {
   MoreHorizontal,
   Filter,
   X,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -62,8 +65,25 @@ type NotificationEntry = {
     | "attendance_rejected"
     | "assignment_assigned"
     | "assignment_completed"
+    | "assignment_deleted"
     | "report_submitted"
     | "member_assigned"
+    | "member_created"
+    | "member_updated"
+    | "member_deleted"
+    | "user_created"
+    | "user_updated"
+    | "user_deleted"
+    | "profile_updated"
+    | "settings_updated"
+    | "group_created"
+    | "group_updated"
+    | "group_deleted"
+    | "group_member_added"
+    | "group_member_removed"
+    | "event_created"
+    | "event_updated"
+    | "event_deleted"
     | "prayer_request"
     | "prayer_response"
     | "system"
@@ -76,10 +96,12 @@ type NotificationEntry = {
     | "assignment"
     | "report"
     | "member"
+    | "user"
     | "group"
     | "event"
     | "reminder"
-    | "prayer_request";
+    | "prayer_request"
+    | "settings";
   isRead: boolean;
   createdAt: number;
 };
@@ -112,8 +134,25 @@ function getNotificationIcon(type: string) {
     attendance_rejected: XCircle,
     assignment_assigned: AlertCircle,
     assignment_completed: CheckCircle2,
+    assignment_deleted: XCircle,
     report_submitted: Info,
     member_assigned: AlertCircle,
+    member_created: CheckCircle2,
+    member_updated: Info,
+    member_deleted: XCircle,
+    user_created: CheckCircle2,
+    user_updated: Info,
+    user_deleted: XCircle,
+    profile_updated: Info,
+    settings_updated: Settings,
+    group_created: CheckCircle2,
+    group_updated: Info,
+    group_deleted: XCircle,
+    group_member_added: CheckCircle2,
+    group_member_removed: XCircle,
+    event_created: CheckCircle2,
+    event_updated: Info,
+    event_deleted: XCircle,
     prayer_request: AlertCircle,
     prayer_response: Info,
     system: Info,
@@ -144,8 +183,25 @@ function getNotificationColor(type: string): string {
     attendance_rejected: "text-red-600 dark:text-red-400",
     assignment_assigned: "text-blue-600 dark:text-blue-400",
     assignment_completed: "text-green-600 dark:text-green-400",
+    assignment_deleted: "text-red-600 dark:text-red-400",
     report_submitted: "text-purple-600 dark:text-purple-400",
     member_assigned: "text-blue-600 dark:text-blue-400",
+    member_created: "text-green-600 dark:text-green-400",
+    member_updated: "text-blue-600 dark:text-blue-400",
+    member_deleted: "text-red-600 dark:text-red-400",
+    user_created: "text-green-600 dark:text-green-400",
+    user_updated: "text-blue-600 dark:text-blue-400",
+    user_deleted: "text-red-600 dark:text-red-400",
+    profile_updated: "text-blue-600 dark:text-blue-400",
+    settings_updated: "text-purple-600 dark:text-purple-400",
+    group_created: "text-green-600 dark:text-green-400",
+    group_updated: "text-blue-600 dark:text-blue-400",
+    group_deleted: "text-red-600 dark:text-red-400",
+    group_member_added: "text-green-600 dark:text-green-400",
+    group_member_removed: "text-red-600 dark:text-red-400",
+    event_created: "text-green-600 dark:text-green-400",
+    event_updated: "text-blue-600 dark:text-blue-400",
+    event_deleted: "text-red-600 dark:text-red-400",
     prayer_request: "text-orange-600 dark:text-orange-400",
     prayer_response: "text-green-600 dark:text-green-400",
     system: "text-gray-600 dark:text-gray-400",
@@ -515,7 +571,12 @@ export default function NotificationsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatsCardSkeleton count={3} />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Notifications</CardTitle>
@@ -553,6 +614,7 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Filters Card */}
       {(hasActiveFilters || uniqueTypes.length > 0) && (
@@ -640,9 +702,7 @@ export default function NotificationsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading notifications...</p>
-            </div>
+            <TableSkeleton columns={4} rows={8} showCheckbox={true} />
           ) : !hasNotifications ? (
             <div className="text-center py-16">
               <div className="rounded-full bg-muted p-6 mb-4 inline-block">

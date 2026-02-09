@@ -146,7 +146,8 @@ export default defineSchema({
 
   // Attendance records
   attendance: defineTable({
-    memberId: v.id("members"),
+    memberId: v.optional(v.id("members")), // For member attendance
+    userId: v.optional(v.id("users")), // For shepherd/user attendance
     date: v.number(), // Unix timestamp for the attendance date
     attendanceStatus: v.union(
       v.literal("present"),
@@ -155,7 +156,7 @@ export default defineSchema({
       v.literal("late")
     ),
     // Submission and approval workflow
-    submittedBy: v.id("users"), // Shepherd who submitted
+    submittedBy: v.id("users"), // User who submitted (shepherd, admin, or pastor)
     submittedAt: v.number(),
     approvalStatus: v.union(
       v.literal("pending"), // Awaiting approval
@@ -168,6 +169,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
   })
     .index("by_member", ["memberId"])
+    .index("by_user", ["userId"])
     .index("by_date", ["date"])
     .index("by_submitted_by", ["submittedBy"])
     .index("by_approval_status", ["approvalStatus"]),
@@ -395,8 +397,25 @@ export default defineSchema({
       v.literal("attendance_rejected"),
       v.literal("assignment_assigned"),
       v.literal("assignment_completed"),
+      v.literal("assignment_deleted"),
       v.literal("report_submitted"),
       v.literal("member_assigned"),
+      v.literal("member_created"),
+      v.literal("member_updated"),
+      v.literal("member_deleted"),
+      v.literal("user_created"),
+      v.literal("user_updated"),
+      v.literal("user_deleted"),
+      v.literal("profile_updated"),
+      v.literal("settings_updated"),
+      v.literal("group_created"),
+      v.literal("group_updated"),
+      v.literal("group_deleted"),
+      v.literal("group_member_added"),
+      v.literal("group_member_removed"),
+      v.literal("event_created"),
+      v.literal("event_updated"),
+      v.literal("event_deleted"),
       v.literal("prayer_request"),
       v.literal("prayer_response"),
       v.literal("system"),
@@ -411,10 +430,12 @@ export default defineSchema({
         v.literal("assignment"),
         v.literal("report"),
         v.literal("member"),
+        v.literal("user"),
         v.literal("group"),
         v.literal("event"),
         v.literal("reminder"),
-        v.literal("prayer_request")
+        v.literal("prayer_request"),
+        v.literal("settings")
       )
     ),
     isRead: v.boolean(),

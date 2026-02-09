@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { StatsCardSkeleton } from "@/components/ui/card-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -649,7 +651,12 @@ export default function UsersPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <StatsCardSkeleton count={5} />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -703,8 +710,9 @@ export default function UsersPage() {
             <div className="text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
             <p className="text-xs text-muted-foreground">Church members</p>
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
 
       {/* Users Table */}
       <Card>
@@ -765,9 +773,7 @@ export default function UsersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading users...</p>
-            </div>
+            <TableSkeleton columns={6} rows={8} showCheckbox={true} />
           ) : users && users.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

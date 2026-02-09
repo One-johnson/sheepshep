@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { createNotification, notifyAdmins } from "./notificationHelpers";
 
 // Create group
 export const create = mutation({
@@ -56,6 +57,30 @@ export const create = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Notify the leader
+    const leaderId = args.leaderId || userId;
+    if (leaderId !== userId) {
+      await createNotification(
+        ctx,
+        leaderId,
+        "group_created",
+        "New Group Created",
+        `You have been assigned as leader of "${args.name}"`,
+        groupId,
+        "group"
+      );
+    }
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "group_created",
+      "New Group Created",
+      `${user.name} created a new group: ${args.name}`,
+      groupId,
+      "group"
+    );
 
     return { groupId };
   },
@@ -185,7 +210,46 @@ export const update = mutation({
 
     await ctx.db.patch(args.groupId, updates);
 
-    return await ctx.db.get(args.groupId);
+    const updatedGroup = await ctx.db.get(args.groupId);
+
+    // Notify the leader if changed
+    if (args.leaderId !== undefined && args.leaderId !== group.leaderId) {
+      // Notify old leader
+      if (group.leaderId) {
+        await createNotification(
+          ctx,
+          group.leaderId,
+          "group_updated",
+          "Group Leadership Changed",
+          `You are no longer the leader of "${group.name}"`,
+          args.groupId,
+          "group"
+        );
+      }
+      // Notify new leader
+      await createNotification(
+        ctx,
+        args.leaderId,
+        "group_updated",
+        "Group Leadership Assigned",
+        `You have been assigned as leader of "${group.name}"`,
+        args.groupId,
+        "group"
+      );
+    } else if (group.leaderId) {
+      // Notify leader of update
+      await createNotification(
+        ctx,
+        group.leaderId,
+        "group_updated",
+        "Group Updated",
+        `Group "${group.name}" has been updated`,
+        args.groupId,
+        "group"
+      );
+    }
+
+    return updatedGroup;
   },
 });
 
@@ -221,6 +285,29 @@ export const remove = mutation({
       isActive: false,
       updatedAt: Date.now(),
     });
+
+    // Notify the leader
+    if (group.leaderId) {
+      await createNotification(
+        ctx,
+        group.leaderId,
+        "group_deleted",
+        "Group Deleted",
+        `Group "${group.name}" has been deleted`,
+        args.groupId,
+        "group"
+      );
+    }
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "group_deleted",
+      "Group Deleted",
+      `${user.name} deleted group: ${group.name}`,
+      args.groupId,
+      "group"
+    );
 
     return { success: true };
   },
@@ -285,6 +372,34 @@ export const addMember = mutation({
       addedBy: userId,
     });
 
+    const memberName = `${member.firstName} ${member.lastName}`;
+
+    // Notify the group leader
+    if (group.leaderId) {
+      await createNotification(
+        ctx,
+        group.leaderId,
+        "group_member_added",
+        "Member Added to Group",
+        `${memberName} has been added to "${group.name}"`,
+        args.groupId,
+        "group"
+      );
+    }
+
+    // Notify member's shepherd if different from group leader
+    if (member.shepherdId && member.shepherdId !== group.leaderId) {
+      await createNotification(
+        ctx,
+        member.shepherdId,
+        "group_member_added",
+        "Member Added to Group",
+        `${memberName} has been added to group "${group.name}"`,
+        args.groupId,
+        "group"
+      );
+    }
+
     return { success: true };
   },
 });
@@ -334,6 +449,35 @@ export const removeMember = mutation({
     }
 
     await ctx.db.delete(groupMember._id);
+
+    const member = await ctx.db.get(args.memberId);
+    const memberName = member ? `${member.firstName} ${member.lastName}` : "Member";
+
+    // Notify the group leader
+    if (group.leaderId) {
+      await createNotification(
+        ctx,
+        group.leaderId,
+        "group_member_removed",
+        "Member Removed from Group",
+        `${memberName} has been removed from "${group.name}"`,
+        args.groupId,
+        "group"
+      );
+    }
+
+    // Notify member's shepherd if different from group leader
+    if (member?.shepherdId && member.shepherdId !== group.leaderId) {
+      await createNotification(
+        ctx,
+        member.shepherdId,
+        "group_member_removed",
+        "Member Removed from Group",
+        `${memberName} has been removed from group "${group.name}"`,
+        args.groupId,
+        "group"
+      );
+    }
 
     return { success: true };
   },

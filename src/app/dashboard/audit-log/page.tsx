@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -29,6 +28,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { FileText, Filter, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -73,6 +78,7 @@ type AuditLogEntry = {
   action: string;
   entityType: string;
   entityId?: string;
+  entityCustomId?: string; // Custom ID for members (e.g., MBR-0425)
   details?: string;
   ipAddress?: string;
   userAgent?: string;
@@ -275,16 +281,115 @@ export default function AuditLogPage() {
         header: "Details",
         cell: ({ row }) => {
           const log = row.original;
-          return (
-            <div className="space-y-1 max-w-md">
-              {log.details && <div className="text-sm">{log.details}</div>}
-              {log.entityId && (
-                <div className="text-xs text-muted-foreground font-mono">
-                  ID: {log.entityId}
+          const hasDetails = log.details || log.entityId || log.entityCustomId || log.ipAddress;
+          
+          if (!hasDetails) {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+
+          // Truncate details for preview (max 60 characters)
+          const truncateLength = 60;
+          const detailsPreview = log.details
+            ? log.details.length > truncateLength
+              ? `${log.details.substring(0, truncateLength)}...`
+              : log.details
+            : null;
+
+          // Format details content for hover card
+          const formatDetails = (details: string) => {
+            try {
+              // Try to parse as JSON for better formatting
+              const parsed = JSON.parse(details);
+              return JSON.stringify(parsed, null, 2);
+            } catch {
+              // If not JSON, return as-is
+              return details;
+            }
+          };
+
+          const fullContent = (
+            <div className="space-y-3">
+              {log.details && (
+                <div>
+                  <div className="text-xs font-semibold mb-1.5 text-muted-foreground uppercase tracking-wide">
+                    Details
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap break-words font-mono bg-muted/50 p-2 rounded text-xs">
+                    {formatDetails(log.details)}
+                  </div>
+                </div>
+              )}
+              {(log.entityCustomId || log.entityId) && (
+                <div>
+                  <div className="text-xs font-semibold mb-1 text-muted-foreground uppercase tracking-wide">
+                    {log.entityType === "member" ? "Member ID" : "Entity ID"}
+                  </div>
+                  <div className="text-xs font-mono break-all">
+                    {log.entityCustomId || log.entityId}
+                  </div>
+                  {log.entityCustomId && log.entityId && log.entityCustomId !== log.entityId && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Convex ID: {log.entityId}
+                    </div>
+                  )}
                 </div>
               )}
               {log.ipAddress && (
-                <div className="text-xs text-muted-foreground">IP: {log.ipAddress}</div>
+                <div>
+                  <div className="text-xs font-semibold mb-1 text-muted-foreground uppercase tracking-wide">
+                    IP Address
+                  </div>
+                  <div className="text-xs font-mono">{log.ipAddress}</div>
+                </div>
+              )}
+              {log.userAgent && (
+                <div>
+                  <div className="text-xs font-semibold mb-1 text-muted-foreground uppercase tracking-wide">
+                    User Agent
+                  </div>
+                  <div className="text-xs break-all">{log.userAgent}</div>
+                </div>
+              )}
+            </div>
+          );
+
+          const showHoverCard = log.details && log.details.length > truncateLength;
+
+          return (
+            <div className="max-w-[200px]">
+              {showHoverCard ? (
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <div className="cursor-pointer">
+                      <div className="text-sm truncate text-foreground hover:text-primary transition-colors">
+                        {detailsPreview}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Hover for full details
+                      </div>
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-96 max-h-[400px] overflow-y-auto">
+                    {fullContent}
+                  </HoverCardContent>
+                </HoverCard>
+              ) : (
+                <div className="text-sm break-words">
+                  {detailsPreview || (
+                    <>
+                      {(log.entityCustomId || log.entityId) && (
+                        <div className="text-xs text-muted-foreground font-mono truncate">
+                          {log.entityType === "member" ? "Member" : "Entity"} ID: {log.entityCustomId || log.entityId}
+                        </div>
+                      )}
+                      {log.ipAddress && !log.entityId && !log.entityCustomId && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          IP: {log.ipAddress}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -458,16 +563,7 @@ export default function AuditLogPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-12 flex-1" />
-                  <Skeleton className="h-12 w-32" />
-                  <Skeleton className="h-12 w-32" />
-                  <Skeleton className="h-12 w-48" />
-                </div>
-              ))}
-            </div>
+            <TableSkeleton columns={5} rows={8} showCheckbox={true} />
           ) : hasError ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">

@@ -1,35 +1,17 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { createNotification } from "./notificationHelpers";
+import { Id } from "./_generated/dataModel";
 
-
-// Helper function to create notification
-async function createNotification(
-  ctx: any,
-  userId: string,
-  type: string,
-  title: string,
-  message: string,
-  relatedId?: string,
-  relatedType?: string
-) {
-  await ctx.db.insert("notifications", {
-    userId: userId as any,
-    type: type as any,
-    title,
-    message,
-    relatedId,
-    relatedType: relatedType as any,
-    isRead: false,
-    createdAt: Date.now(),
-  });
-}
-
-// Create attendance record (shepherd submits)
+// Create attendance record
+// - Shepherds: can create pending attendance for their members
+// - Admins/Pastors: can create approved attendance for members and shepherds
 export const create = mutation({
   args: {
     token: v.string(),
-    memberId: v.id("members"),
+    memberId: v.optional(v.id("members")), // For member attendance
+    userId: v.optional(v.id("users")), // For shepherd/user attendance
     date: v.number(), // Unix timestamp
     attendanceStatus: v.union(
       v.literal("present"),
@@ -38,74 +20,186 @@ export const create = mutation({
       v.literal("late")
     ),
     notes: v.optional(v.string()),
+    autoApprove: v.optional(v.boolean()), // For admins/pastors to create approved attendance
   },
   handler: async (ctx, args) => {
-    const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
       throw new Error("Unauthorized");
     }
 
-    const user = await ctx.db.get(userId);
+    const user = await ctx.db.get(currentUserId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Only shepherds can submit attendance
-    if (user.role !== "shepherd") {
-      throw new Error("Unauthorized - only shepherds can submit attendance");
+    // Must have either memberId or userId, but not both
+    if (!args.memberId && !args.userId) {
+      throw new Error("Either memberId or userId must be provided");
+    }
+    if (args.memberId && args.userId) {
+      throw new Error("Cannot specify both memberId and userId");
     }
 
-    const member = await ctx.db.get(args.memberId);
-    if (!member) {
-      throw new Error("Member not found");
+    let approvalStatus: "pending" | "approved" = "pending";
+    let approvedBy: Id<"users"> | undefined = undefined;
+    let approvedAt: number | undefined = undefined;
+
+    // Admins and pastors can create approved attendance directly
+    if (user.role === "admin" || user.role === "pastor") {
+      if (args.autoApprove) {
+        approvalStatus = "approved";
+        approvedBy = currentUserId;
+        approvedAt = Date.now();
+      }
+    } else if (user.role !== "shepherd") {
+      throw new Error("Unauthorized - only shepherds, admins, and pastors can create attendance");
     }
 
-    // Check if shepherd owns this member
-    if (member.shepherdId !== userId) {
-      throw new Error("Unauthorized - member not assigned to you");
+    // Validate member or user exists
+    if (args.memberId) {
+      const member = await ctx.db.get(args.memberId);
+      if (!member) {
+        throw new Error("Member not found");
+      }
+
+      // If shepherd, check if they own this member
+      if (user.role === "shepherd" && member.shepherdId !== currentUserId) {
+        throw new Error("Unauthorized - member not assigned to you");
+      }
+
+      // If pastor, check if they oversee the member's shepherd
+      if (user.role === "pastor") {
+        const memberShepherd = await ctx.db.get(member.shepherdId);
+        if (!memberShepherd || memberShepherd.overseerId !== currentUserId) {
+          throw new Error("Unauthorized - you don't oversee this member's shepherd");
+        }
+      }
     }
 
-    // Create attendance record with pending status
+    if (args.userId) {
+      // Only admins and pastors can create attendance for users (shepherds)
+      if (user.role !== "admin" && user.role !== "pastor") {
+        throw new Error("Unauthorized - only admins and pastors can create attendance for shepherds");
+      }
+
+      const targetUser = await ctx.db.get(args.userId);
+      if (!targetUser) {
+        throw new Error("User not found");
+      }
+
+      // If pastor, check if they oversee this shepherd
+      if (user.role === "pastor" && targetUser.overseerId !== currentUserId) {
+        throw new Error("Unauthorized - you don't oversee this shepherd");
+      }
+
+      // Check for existing attendance for this user on this date
+      const date = new Date(args.date);
+      date.setHours(0, 0, 0, 0);
+      const startOfDay = date.getTime();
+      const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
+
+      const existingAttendance = await ctx.db
+        .query("attendance")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .collect();
+
+      const duplicate = existingAttendance.find(
+        (a) => a.date >= startOfDay && a.date < endOfDay
+      );
+
+      if (duplicate) {
+        throw new Error("Attendance already marked for this user on this date");
+      }
+
+      // Auto-approve user attendance when created by admin/pastor
+      approvalStatus = "approved";
+      approvedBy = currentUserId;
+      approvedAt = Date.now();
+    }
+
+    // Check for existing attendance for this member on this date
+    if (args.memberId) {
+      const date = new Date(args.date);
+      date.setHours(0, 0, 0, 0);
+      const startOfDay = date.getTime();
+      const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
+
+      const existingAttendance = await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+        .collect();
+
+      const duplicate = existingAttendance.find(
+        (a) => a.date >= startOfDay && a.date < endOfDay
+      );
+
+      if (duplicate) {
+        throw new Error("Attendance already marked for this member on this date");
+      }
+    }
+
+    // Create attendance record
     const attendanceId = await ctx.db.insert("attendance", {
       memberId: args.memberId,
+      userId: args.userId,
       date: args.date,
       attendanceStatus: args.attendanceStatus,
-      submittedBy: userId,
+      submittedBy: currentUserId,
       submittedAt: Date.now(),
-      approvalStatus: "pending",
+      approvalStatus,
+      approvedBy,
+      approvedAt,
       notes: args.notes,
     });
 
-    // Notify admin and pastor (if member's shepherd has an overseer)
-    if (user.overseerId) {
-      await createNotification(
-        ctx,
-        user.overseerId,
-        "attendance_pending",
-        "Attendance Pending Approval",
-        `Attendance for ${member.firstName} ${member.lastName} is pending approval`,
-        attendanceId,
-        "attendance"
-      );
+    // Update member's last attendance date if present
+    if (args.memberId && args.attendanceStatus === "present" && approvalStatus === "approved") {
+      const member = await ctx.db.get(args.memberId);
+      if (member) {
+        await ctx.db.patch(args.memberId, {
+          lastAttendanceDate: args.date,
+          attendanceRiskLevel: "none",
+          updatedAt: Date.now(),
+        });
+      }
     }
 
-    // Notify all admins
-    const admins = await ctx.db
-      .query("users")
-      .withIndex("by_role", (q) => q.eq("role", "admin"))
-      .collect();
+    // Notify admins and pastor if pending (shepherd submission)
+    if (approvalStatus === "pending" && user.role === "shepherd" && args.memberId) {
+      const memberForNotification = await ctx.db.get(args.memberId);
+      if (memberForNotification) {
+        if (user.overseerId) {
+          await createNotification(
+            ctx,
+            user.overseerId,
+            "attendance_pending",
+            "Attendance Pending Approval",
+            `Attendance for ${memberForNotification.firstName} ${memberForNotification.lastName} is pending approval`,
+            attendanceId,
+            "attendance"
+          );
+        }
 
-    for (const admin of admins) {
-      if (admin.isActive) {
-        await createNotification(
-          ctx,
-          admin._id,
-          "attendance_pending",
-          "Attendance Pending Approval",
-          `Attendance for ${member.firstName} ${member.lastName} is pending approval`,
-          attendanceId,
-          "attendance"
-        );
+        // Notify all admins
+        const admins = await ctx.db
+          .query("users")
+          .withIndex("by_role", (q) => q.eq("role", "admin"))
+          .collect();
+
+        for (const admin of admins) {
+          if (admin.isActive) {
+            await createNotification(
+              ctx,
+              admin._id,
+              "attendance_pending",
+              "Attendance Pending Approval",
+              `Attendance for ${memberForNotification.firstName} ${memberForNotification.lastName} is pending approval`,
+              attendanceId,
+              "attendance"
+            );
+          }
+        }
       }
     }
 
@@ -141,11 +235,28 @@ export const approve = mutation({
       throw new Error("Attendance record not found");
     }
 
-    // If pastor, check if they oversee the shepherd
+    // If pastor, check permissions
     if (user.role === "pastor") {
       const submittedByUser = await ctx.db.get(attendance.submittedBy);
-      if (!submittedByUser || submittedByUser.overseerId !== userId) {
-        throw new Error("Unauthorized - you don't oversee this shepherd");
+      if (!submittedByUser) {
+        throw new Error("User who submitted attendance not found");
+      }
+      // For member attendance, check if pastor oversees the member's shepherd
+      if (attendance.memberId) {
+        const member = await ctx.db.get(attendance.memberId);
+        if (!member) {
+          throw new Error("Member not found");
+        }
+        const memberShepherd = await ctx.db.get(member.shepherdId);
+        if (!memberShepherd || memberShepherd.overseerId !== userId) {
+          throw new Error("Unauthorized - you don't oversee this member's shepherd");
+        }
+      } else if (attendance.userId) {
+        // For user attendance, check if pastor oversees the user
+        const targetUser = await ctx.db.get(attendance.userId);
+        if (!targetUser || targetUser.overseerId !== userId) {
+          throw new Error("Unauthorized - you don't oversee this shepherd");
+        }
       }
     }
 
@@ -158,7 +269,7 @@ export const approve = mutation({
     });
 
     // Update member's last attendance date if present
-    if (attendance.attendanceStatus === "present") {
+    if (attendance.attendanceStatus === "present" && attendance.memberId) {
       const member = await ctx.db.get(attendance.memberId);
       if (member) {
         // Update last attendance date and reset risk level
@@ -213,11 +324,28 @@ export const reject = mutation({
       throw new Error("Attendance record not found");
     }
 
-    // If pastor, check if they oversee the shepherd
+    // If pastor, check permissions
     if (user.role === "pastor") {
       const submittedByUser = await ctx.db.get(attendance.submittedBy);
-      if (!submittedByUser || submittedByUser.overseerId !== userId) {
-        throw new Error("Unauthorized - you don't oversee this shepherd");
+      if (!submittedByUser) {
+        throw new Error("User who submitted attendance not found");
+      }
+      // For member attendance, check if pastor oversees the member's shepherd
+      if (attendance.memberId) {
+        const member = await ctx.db.get(attendance.memberId);
+        if (!member) {
+          throw new Error("Member not found");
+        }
+        const memberShepherd = await ctx.db.get(member.shepherdId);
+        if (!memberShepherd || memberShepherd.overseerId !== userId) {
+          throw new Error("Unauthorized - you don't oversee this member's shepherd");
+        }
+      } else if (attendance.userId) {
+        // For user attendance, check if pastor oversees the user
+        const targetUser = await ctx.db.get(attendance.userId);
+        if (!targetUser || targetUser.overseerId !== userId) {
+          throw new Error("Unauthorized - you don't oversee this shepherd");
+        }
       }
     }
 
@@ -260,16 +388,12 @@ export const getById = query({
   },
 });
 
-// List attendance records
-export const list = query({
+// Check existing attendance for members on a specific date
+export const checkExistingAttendance = query({
   args: {
     token: v.string(),
-    memberId: v.optional(v.id("members")),
-    approvalStatus: v.optional(
-      v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))
-    ),
-    startDate: v.optional(v.number()),
-    endDate: v.optional(v.number()),
+    memberIds: v.array(v.id("members")),
+    date: v.number(), // Unix timestamp for the date
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
@@ -282,26 +406,101 @@ export const list = query({
       throw new Error("User not found");
     }
 
+    // Calculate start and end of the day
+    const date = new Date(args.date);
+    date.setHours(0, 0, 0, 0);
+    const startOfDay = date.getTime();
+    const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1;
+
+    // Get all attendance records for these members on this date
+    const allAttendance = await ctx.db.query("attendance").collect();
+    
+    const existingAttendance = allAttendance.filter(
+      (a) =>
+        a.memberId &&
+        args.memberIds.includes(a.memberId) &&
+        a.date >= startOfDay &&
+        a.date < endOfDay
+    );
+
+    // Return a map of memberId -> attendance record
+    const result: Record<string, any> = {};
+    for (const attendance of existingAttendance) {
+      if (attendance.memberId) {
+        result[attendance.memberId] = attendance;
+      }
+    }
+
+    return result;
+  },
+});
+
+// List attendance records
+export const list = query({
+  args: {
+    token: v.string(),
+    memberId: v.optional(v.id("members")),
+    userId: v.optional(v.id("users")), // Filter by user (shepherd) attendance
+    approvalStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))
+    ),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(currentUserId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
     let attendance = await ctx.db.query("attendance").collect();
 
     // Filter by role permissions
     if (user.role === "shepherd") {
-      // Shepherds can only see their own submissions
-      attendance = attendance.filter((a) => a.submittedBy === userId);
+      // Shepherds can only see attendance for their own members
+      const myMembers = await ctx.db
+        .query("members")
+        .withIndex("by_shepherd", (q) => q.eq("shepherdId", currentUserId))
+        .collect();
+      const myMemberIds = myMembers.map((m) => m._id);
+      attendance = attendance.filter(
+        (a) => (a.memberId && myMemberIds.includes(a.memberId)) || a.submittedBy === currentUserId
+      );
     } else if (user.role === "pastor") {
-      // Pastors can see attendance from their shepherds
+      // Pastors can see attendance from their shepherds and their members
       const shepherds = await ctx.db
         .query("users")
-        .withIndex("by_overseer", (q) => q.eq("overseerId", userId))
+        .withIndex("by_overseer", (q) => q.eq("overseerId", currentUserId))
         .collect();
       const shepherdIds = shepherds.map((s) => s._id);
-      attendance = attendance.filter((a) => shepherdIds.includes(a.submittedBy));
+      
+      // Get members assigned to these shepherds
+      const members = await ctx.db.query("members").collect();
+      const pastorMemberIds = members
+        .filter((m) => shepherdIds.includes(m.shepherdId))
+        .map((m) => m._id);
+
+      attendance = attendance.filter(
+        (a) =>
+          (a.memberId && pastorMemberIds.includes(a.memberId)) ||
+          (a.userId && shepherdIds.includes(a.userId)) ||
+          shepherdIds.includes(a.submittedBy)
+      );
     }
     // Admins can see all
 
     // Apply filters
     if (args.memberId) {
       attendance = attendance.filter((a) => a.memberId === args.memberId);
+    }
+
+    if (args.userId) {
+      attendance = attendance.filter((a) => a.userId === args.userId);
     }
 
     if (args.approvalStatus) {
@@ -401,12 +600,15 @@ export const remove = mutation({
 });
 
 // Bulk create attendance records
+// - Shepherds: can create pending attendance for their members
+// - Admins/Pastors: can create approved attendance for members and shepherds
 export const bulkCreate = mutation({
   args: {
     token: v.string(),
     attendanceRecords: v.array(
       v.object({
-        memberId: v.id("members"),
+        memberId: v.optional(v.id("members")),
+        userId: v.optional(v.id("users")), // For shepherd attendance
         date: v.number(),
         attendanceStatus: v.union(
           v.literal("present"),
@@ -417,21 +619,32 @@ export const bulkCreate = mutation({
         notes: v.optional(v.string()),
       })
     ),
+    autoApprove: v.optional(v.boolean()), // For admins/pastors to create approved attendance
   },
   handler: async (ctx, args) => {
-    const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
       throw new Error("Unauthorized");
     }
 
-    const user = await ctx.db.get(userId);
+    const user = await ctx.db.get(currentUserId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Only shepherds can submit attendance
-    if (user.role !== "shepherd") {
-      throw new Error("Unauthorized - only shepherds can submit attendance");
+    // Admins and pastors can create approved attendance directly
+    let approvalStatus: "pending" | "approved" = "pending";
+    let approvedBy: Id<"users"> | undefined = undefined;
+    let approvedAt: number | undefined = undefined;
+
+    if (user.role === "admin" || user.role === "pastor") {
+      if (args.autoApprove) {
+        approvalStatus = "approved";
+        approvedBy = currentUserId;
+        approvedAt = Date.now();
+      }
+    } else if (user.role !== "shepherd") {
+      throw new Error("Unauthorized - only shepherds, admins, and pastors can create attendance");
     }
 
     const created: string[] = [];
@@ -441,37 +654,145 @@ export const bulkCreate = mutation({
       const record = args.attendanceRecords[i];
 
       try {
-        const member = await ctx.db.get(record.memberId);
-        if (!member) {
-          errors.push({ index: i, error: "Member not found" });
+        // Must have either memberId or userId, but not both
+        if (!record.memberId && !record.userId) {
+          errors.push({ index: i, error: "Either memberId or userId must be provided" });
+          continue;
+        }
+        if (record.memberId && record.userId) {
+          errors.push({ index: i, error: "Cannot specify both memberId and userId" });
           continue;
         }
 
-        // Check if shepherd owns this member
-        if (member.shepherdId !== userId) {
-          errors.push({ index: i, error: "Member not assigned to you" });
-          continue;
+        if (record.memberId) {
+          const member = await ctx.db.get(record.memberId);
+          if (!member) {
+            errors.push({ index: i, error: "Member not found" });
+            continue;
+          }
+
+          // If shepherd, check if they own this member
+          if (user.role === "shepherd" && member.shepherdId !== currentUserId) {
+            errors.push({ index: i, error: "Member not assigned to you" });
+            continue;
+          }
+
+          // If pastor, check if they oversee the member's shepherd
+          if (user.role === "pastor") {
+            const memberShepherd = await ctx.db.get(member.shepherdId);
+            if (!memberShepherd || memberShepherd.overseerId !== currentUserId) {
+              errors.push({ index: i, error: "You don't oversee this member's shepherd" });
+              continue;
+            }
+          }
+
+          // Check for existing attendance for this member on this date
+          const date = new Date(record.date);
+          date.setHours(0, 0, 0, 0);
+          const startOfDay = date.getTime();
+          const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
+
+          const existingAttendance = await ctx.db
+            .query("attendance")
+            .withIndex("by_member", (q) => q.eq("memberId", record.memberId))
+            .collect();
+
+          const duplicate = existingAttendance.find(
+            (a) => a.date >= startOfDay && a.date < endOfDay
+          );
+
+          if (duplicate) {
+            errors.push({ index: i, error: "Attendance already marked for this member on this date" });
+            continue;
+          }
+
+          // Create attendance record
+          const attendanceId = await ctx.db.insert("attendance", {
+            memberId: record.memberId,
+            date: record.date,
+            attendanceStatus: record.attendanceStatus,
+            submittedBy: currentUserId,
+            submittedAt: Date.now(),
+            approvalStatus,
+            approvedBy,
+            approvedAt,
+            notes: record.notes,
+          });
+
+          // Update member's last attendance date if present and approved
+          if (record.attendanceStatus === "present" && approvalStatus === "approved") {
+            await ctx.db.patch(record.memberId, {
+              lastAttendanceDate: record.date,
+              attendanceRiskLevel: "none",
+              updatedAt: Date.now(),
+            });
+          }
+
+          created.push(attendanceId);
+        } else if (record.userId) {
+          // Only admins and pastors can create attendance for users (shepherds)
+          if (user.role !== "admin" && user.role !== "pastor") {
+            errors.push({
+              index: i,
+              error: "Only admins and pastors can create attendance for shepherds",
+            });
+            continue;
+          }
+
+          const targetUser = await ctx.db.get(record.userId);
+          if (!targetUser) {
+            errors.push({ index: i, error: "User not found" });
+            continue;
+          }
+
+          // If pastor, check if they oversee this shepherd
+          if (user.role === "pastor" && targetUser.overseerId !== currentUserId) {
+            errors.push({ index: i, error: "You don't oversee this shepherd" });
+            continue;
+          }
+
+          // Check for existing attendance for this user on this date
+          const date = new Date(record.date);
+          date.setHours(0, 0, 0, 0);
+          const startOfDay = date.getTime();
+          const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
+
+          const existingAttendance = await ctx.db
+            .query("attendance")
+            .withIndex("by_user", (q) => q.eq("userId", record.userId))
+            .collect();
+
+          const duplicate = existingAttendance.find(
+            (a) => a.date >= startOfDay && a.date < endOfDay
+          );
+
+          if (duplicate) {
+            errors.push({ index: i, error: "Attendance already marked for this user on this date" });
+            continue;
+          }
+
+          // Auto-approve user attendance when created by admin/pastor
+          const attendanceId = await ctx.db.insert("attendance", {
+            userId: record.userId,
+            date: record.date,
+            attendanceStatus: record.attendanceStatus,
+            submittedBy: currentUserId,
+            submittedAt: Date.now(),
+            approvalStatus: "approved",
+            approvedBy: currentUserId,
+            approvedAt: Date.now(),
+            notes: record.notes,
+          });
+
+          created.push(attendanceId);
         }
-
-        // Create attendance record
-        const attendanceId = await ctx.db.insert("attendance", {
-          memberId: record.memberId,
-          date: record.date,
-          attendanceStatus: record.attendanceStatus,
-          submittedBy: userId,
-          submittedAt: Date.now(),
-          approvalStatus: "pending",
-          notes: record.notes,
-        });
-
-        created.push(attendanceId);
       } catch (error: any) {
         errors.push({ index: i, error: error.message || "Unknown error" });
       }
     }
 
-    // Notify admins and pastor if any records were created
-    if (created.length > 0) {
+    // Notify admins and pastor if any records were created as pending (shepherd submission)
+    if (created.length > 0 && approvalStatus === "pending" && user.role === "shepherd") {
       if (user.overseerId) {
         await createNotification(
           ctx,
@@ -568,5 +889,45 @@ export const bulkDelete = mutation({
       attendanceIds: deleted,
       errors: errors.length > 0 ? errors : undefined,
     };
+  },
+});
+
+// Get shepherds for attendance management (role-based)
+export const getShepherds = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    let shepherds = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", "shepherd"))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    // Filter by role permissions
+    if (user.role === "pastor") {
+      // Pastors can only see their shepherds
+      shepherds = shepherds.filter((s) => s.overseerId === userId);
+    } else if (user.role === "shepherd") {
+      // Shepherds cannot see other shepherds
+      return [];
+    }
+    // Admins can see all
+
+    // Remove password hashes from response
+    return shepherds.map((s) => {
+      const { passwordHash: _, ...shepherdWithoutPassword } = s;
+      return shepherdWithoutPassword;
+    });
   },
 });

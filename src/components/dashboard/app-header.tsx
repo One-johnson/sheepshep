@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer";
 import { Badge } from "@/components/ui/badge";
 import { GlobalSearch } from "@/components/dashboard/global-search";
@@ -40,6 +40,13 @@ export function AppHeader() {
   const currentUser = useQuery(
     api.auth.getCurrentUser,
     token ? { token } : "skip"
+  );
+
+  const profilePhotoUrl = useQuery(
+    api.storage.getFileUrl,
+    token && currentUser?.profilePhotoId
+      ? { token, storageId: currentUser.profilePhotoId }
+      : "skip"
   );
 
   const unreadCount = useQuery(
@@ -166,6 +173,13 @@ export function AppHeader() {
                       className="flex items-center gap-2 h-auto py-2 px-3"
                     >
                       <Avatar className="h-8 w-8">
+                        {profilePhotoUrl ? (
+                          <AvatarImage 
+                            src={profilePhotoUrl} 
+                            alt={currentUser.name}
+                            className="object-cover"
+                          />
+                        ) : null}
                         <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                           {getInitials(currentUser.name)}
                         </AvatarFallback>
@@ -218,6 +232,13 @@ export function AppHeader() {
                 onClick={() => router.push("/dashboard/profile")}
               >
                 <Avatar className="h-8 w-8">
+                  {profilePhotoUrl ? (
+                    <AvatarImage 
+                      src={profilePhotoUrl} 
+                      alt={currentUser.name}
+                      className="object-cover"
+                    />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                     {getInitials(currentUser.name)}
                   </AvatarFallback>

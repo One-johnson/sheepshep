@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { notifyAdmins } from "./notificationHelpers";
 
 // Get all settings (admin only)
 export const get = query({
@@ -220,12 +221,34 @@ export const update = mutation({
 
     if (existingSettings) {
       await ctx.db.patch(existingSettings._id, settingsData);
+      
+      // Notify all admins about settings update
+      await notifyAdmins(
+        ctx,
+        "settings_updated",
+        "Settings Updated",
+        `${user.name} updated application settings`,
+        existingSettings._id,
+        "settings"
+      );
+      
       return { success: true, id: existingSettings._id };
     } else {
       const id = await ctx.db.insert("settings", {
         ...settingsData,
         createdAt: Date.now(),
       });
+      
+      // Notify all admins about settings creation
+      await notifyAdmins(
+        ctx,
+        "settings_updated",
+        "Settings Created",
+        `${user.name} created application settings`,
+        id,
+        "settings"
+      );
+      
       return { success: true, id };
     }
   },
