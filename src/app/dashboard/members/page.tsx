@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { ConvexReactClient } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -58,6 +59,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 // Type for member entry
 type MemberEntry = {
@@ -419,6 +433,34 @@ export default function MembersPage() {
     toast.success(`${exportMembers.length} member(s) exported to CSV`);
   };
 
+  // Helper function to convert image URL to base64
+  const imageUrlToBase64 = async (url: string): Promise<string | null> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            resolve(reader.result);
+          } else {
+            reject(new Error("Failed to convert image to base64"));
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error("Error converting image to base64:", error);
+      return null;
+    }
+  };
+
+  // Helper function to get initials
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
+  };
+
   // Export to PDF (supports individual or bulk export)
   const handleExportPDF = async (membersToExport?: MemberEntry[]) => {
     const exportMembers = membersToExport || filteredMembers || [];
@@ -428,92 +470,150 @@ export default function MembersPage() {
       return;
     }
 
-    // Create a printable HTML table
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      toast.error("Please allow popups to export PDF");
-      return;
-    }
+    // Show loading toast
+    const loadingToast = toast.loading("Preparing PDF with photos...");
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Members Export</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { margin-bottom: 10px; }
-            p { color: #666; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-            th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            @media print { 
-              @page { margin: 1cm; size: landscape; }
-              body { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Members Export</h1>
-          <p>Generated on: ${new Date().toLocaleString()}</p>
-          <p>Total Members: ${exportMembers.length}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>First Name</th>
-                <th>Last Name</th>
-                <th>Preferred Name</th>
-                <th>Gender</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Status</th>
-                <th>Date Joined</th>
-                <th>Marital Status</th>
-                <th>Spouse Name</th>
-                <th>Children</th>
-                <th>Occupation</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${exportMembers
-                .map(
-                  (member) => `
+    try {
+      // Fetch photo URLs and convert to base64
+      const memberPhotos: Record<string, string> = {};
+      
+      if (token) {
+        // Create Convex client for fetching photo URLs
+        const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+        if (convexUrl) {
+          const convexClient = new ConvexReactClient(convexUrl);
+          
+          await Promise.all(
+            exportMembers.map(async (member) => {
+              if (member.profilePhotoId) {
+                try {
+                  // Get photo URL using Convex client
+                  const photoUrl = await convexClient.query(api.storage.getFileUrl, {
+                    token,
+                    storageId: member.profilePhotoId,
+                  });
+
+                  if (photoUrl) {
+                    // Convert to base64 for embedding
+                    const base64 = await imageUrlToBase64(photoUrl);
+                    if (base64) {
+                      memberPhotos[member._id] = base64;
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Failed to load photo for ${member.firstName} ${member.lastName}:`, error);
+                }
+              }
+            })
+          );
+        }
+      }
+
+      // Create a printable HTML table
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        toast.dismiss(loadingToast);
+        toast.error("Please allow popups to export PDF");
+        return;
+      }
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Members Export</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { margin-bottom: 10px; }
+              p { color: #666; margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 9px; }
+              th, td { border: 1px solid #ddd; padding: 6px; text-align: left; vertical-align: middle; }
+              th { background-color: #f2f2f2; font-weight: bold; }
+              tr:nth-child(even) { background-color: #f9f9f9; }
+              .photo-cell { width: 50px; text-align: center; }
+              .photo-cell img { width: 40px; height: 40px; object-fit: cover; border-radius: 50%; border: 2px solid #ddd; }
+              .photo-cell .initials { width: 40px; height: 40px; border-radius: 50%; background-color: #3b82f6; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+              @media print { 
+                @page { margin: 1cm; size: landscape; }
+                body { padding: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            <h1>Members Export</h1>
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+            <p>Total Members: ${exportMembers.length}</p>
+            <table>
+              <thead>
                 <tr>
-                  <td>${member.customId || "N/A"}</td>
-                  <td>${member.firstName || ""}</td>
-                  <td>${member.lastName || ""}</td>
-                  <td>${member.preferredName || ""}</td>
-                  <td>${member.gender || ""}</td>
-                  <td>${member.phone || ""}</td>
-                  <td>${member.email || ""}</td>
-                  <td>${member.status ? formatStatus(member.status) : "N/A"}</td>
-                  <td>${member.dateJoinedChurch ? new Date(member.dateJoinedChurch).toLocaleDateString() : "N/A"}</td>
-                  <td>${member.maritalStatus || ""}</td>
-                  <td>${member.spouseName || ""}</td>
-                  <td>${member.childrenCount !== undefined ? member.childrenCount : ""}</td>
-                  <td>${member.occupation || ""}</td>
+                  <th>Photo</th>
+                  <th>ID</th>
+                  <th>First Name</th>
+                  <th>Last Name</th>
+                  <th>Preferred Name</th>
+                  <th>Gender</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Date Joined</th>
+                  <th>Marital Status</th>
+                  <th>Spouse Name</th>
+                  <th>Children</th>
+                  <th>Occupation</th>
                 </tr>
-              `
-                )
-                .join("")}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
+              </thead>
+              <tbody>
+                ${exportMembers
+                  .map(
+                    (member) => {
+                      const photoBase64 = memberPhotos[member._id];
+                      const photoHtml = photoBase64
+                        ? `<img src="${photoBase64}" alt="${member.firstName} ${member.lastName}" />`
+                        : `<div class="initials">${getInitials(member.firstName, member.lastName)}</div>`;
+                      
+                      return `
+                    <tr>
+                      <td class="photo-cell">${photoHtml}</td>
+                      <td>${member.customId || "N/A"}</td>
+                      <td>${member.firstName || ""}</td>
+                      <td>${member.lastName || ""}</td>
+                      <td>${member.preferredName || ""}</td>
+                      <td>${member.gender || ""}</td>
+                      <td>${member.phone || ""}</td>
+                      <td>${member.email || ""}</td>
+                      <td>${member.status ? formatStatus(member.status) : "N/A"}</td>
+                      <td>${member.dateJoinedChurch ? new Date(member.dateJoinedChurch).toLocaleDateString() : "N/A"}</td>
+                      <td>${member.maritalStatus || ""}</td>
+                      <td>${member.spouseName || ""}</td>
+                      <td>${member.childrenCount !== undefined ? member.childrenCount : ""}</td>
+                      <td>${member.occupation || ""}</td>
+                    </tr>
+                  `;
+                    }
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // Wait for content to load, then print
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      
+      toast.dismiss(loadingToast);
+      
+      // Wait for content to load, then print
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
 
-    toast.success(`${exportMembers.length} member(s) exported to PDF`);
+      toast.success(`${exportMembers.length} member(s) exported to PDF`);
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error(error.message || "Failed to export PDF");
+    }
   };
 
   // Define columns for DataTable
@@ -772,6 +872,7 @@ export default function MembersPage() {
 
       {/* Stats Cards */}
       {stats && (
+        <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -828,6 +929,116 @@ export default function MembersPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Data Visualizations */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Status Distribution Pie Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Status Distribution</CardTitle>
+              <CardDescription>Member status breakdown</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "New Convert", value: stats.statusCounts.new_convert, color: "#3b82f6" },
+                      { name: "First Timer", value: stats.statusCounts.first_timer, color: "#8b5cf6" },
+                      { name: "Established", value: stats.statusCounts.established, color: "#10b981" },
+                      { name: "Visitor", value: stats.statusCounts.visitor, color: "#f59e0b" },
+                      { name: "Inactive", value: stats.statusCounts.inactive, color: "#ef4444" },
+                    ].filter(item => item.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent! * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {[
+                      { name: "New Convert", value: stats.statusCounts.new_convert, color: "#3b82f6" },
+                      { name: "First Timer", value: stats.statusCounts.first_timer, color: "#8b5cf6" },
+                      { name: "Established", value: stats.statusCounts.established, color: "#10b981" },
+                      { name: "Visitor", value: stats.statusCounts.visitor, color: "#f59e0b" },
+                      { name: "Inactive", value: stats.statusCounts.inactive, color: "#ef4444" },
+                    ].filter(item => item.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Members by Year Joined Bar Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Members by Year Joined</CardTitle>
+              <CardDescription>New members per year</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={Object.entries(stats.yearCounts)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([year, count]) => ({ year, count }))}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="year" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" fill="#3b82f6" name="Members" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Status Breakdown Bar Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Status Breakdown</CardTitle>
+            <CardDescription>Detailed status comparison</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={[
+                  { status: "New Convert", count: stats.statusCounts.new_convert, color: "#3b82f6" },
+                  { status: "First Timer", count: stats.statusCounts.first_timer, color: "#8b5cf6" },
+                  { status: "Established", count: stats.statusCounts.established, color: "#10b981" },
+                  { status: "Visitor", count: stats.statusCounts.visitor, color: "#f59e0b" },
+                  { status: "Inactive", count: stats.statusCounts.inactive, color: "#ef4444" },
+                ]}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="status" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" name="Members">
+                  {[
+                    { status: "New Convert", count: stats.statusCounts.new_convert, color: "#3b82f6" },
+                    { status: "First Timer", count: stats.statusCounts.first_timer, color: "#8b5cf6" },
+                    { status: "Established", count: stats.statusCounts.established, color: "#10b981" },
+                    { status: "Visitor", count: stats.statusCounts.visitor, color: "#f59e0b" },
+                    { status: "Inactive", count: stats.statusCounts.inactive, color: "#ef4444" },
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        </>
       )}
 
       {/* Filters */}
