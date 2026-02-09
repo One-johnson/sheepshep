@@ -390,7 +390,7 @@ export function DataTable<TData, TValue>({
                   />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-4 pb-3">
-                  <div className="space-y-3 pt-2 border-t">
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
                     {otherCells.map((cell) => {
                       const header = cell.column.columnDef.header;
                       const headerText =

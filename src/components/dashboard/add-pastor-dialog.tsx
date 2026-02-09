@@ -48,7 +48,7 @@ const pastorSchema = z.object({
   phone: z.string().optional(),
   whatsappNumber: z.string().optional(),
   preferredName: z.string().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
+  gender: z.enum(["male", "female"]).optional(),
   dateOfBirth: z.string().optional(),
   ordinationDate: z.string().optional(),
   homeAddress: z.string().optional(),
@@ -57,6 +57,12 @@ const pastorSchema = z.object({
   ministryFocus: z.array(z.string()).optional(),
   supervisedZones: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  // Marital information
+  maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+  weddingAnniversaryDate: z.string().optional(),
+  spouseName: z.string().optional(),
+  spouseOccupation: z.string().optional(),
+  childrenCount: z.number().min(0).optional(),
 });
 
 type PastorFormValues = z.infer<typeof pastorSchema>;
@@ -97,6 +103,11 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       ministryFocus: [],
       supervisedZones: [],
       notes: "",
+      maritalStatus: undefined,
+      weddingAnniversaryDate: "",
+      spouseName: "",
+      spouseOccupation: "",
+      childrenCount: undefined,
     },
   });
 
@@ -118,6 +129,11 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       "ministryFocus",
       "supervisedZones",
       "notes",
+      "maritalStatus",
+      "weddingAnniversaryDate",
+      "spouseName",
+      "spouseOccupation",
+      "childrenCount",
     ];
 
     const exampleRow = [
@@ -136,6 +152,11 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       "Youth,Teaching",
       "Zone A,Zone B",
       "Notes here",
+      "married",
+      "2000-06-15",
+      "Jane Doe",
+      "Teacher",
+      "2",
     ];
 
     const csvContent = [headers, exampleRow]
@@ -155,6 +176,68 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
     toast.success("Template downloaded");
   };
 
+  // Convert lowercase/snake_case/camelCase header to camelCase
+  const toCamelCase = (str: string): string => {
+    const lowerStr = str.toLowerCase();
+    
+    // Special case: convert whatsAppNumber (any case) to whatsappNumber (schema uses lowercase 'a')
+    if (lowerStr === "whatsappnumber" || str === "whatsAppNumber") {
+      return "whatsappNumber";
+    }
+    
+    // If already camelCase (but not whatsAppNumber), return as is
+    if (/^[a-z]+[A-Z]/.test(str) && str !== "whatsAppNumber") {
+      return str;
+    }
+
+    // Handle common camelCase field mappings (for lowercase/snake_case input)
+    const fieldMap: Record<string, string> = {
+      email: "email",
+      password: "password",
+      name: "name",
+      phone: "phone",
+      whatsappnumber: "whatsappNumber",
+      whatsapp_number: "whatsappNumber",
+      preferredname: "preferredName",
+      preferred_name: "preferredName",
+      gender: "gender",
+      dateofbirth: "dateOfBirth",
+      date_of_birth: "dateOfBirth",
+      ordinationdate: "ordinationDate",
+      ordination_date: "ordinationDate",
+      homeaddress: "homeAddress",
+      home_address: "homeAddress",
+      qualification: "qualification",
+      yearsinministry: "yearsInMinistry",
+      years_in_ministry: "yearsInMinistry",
+      ministryfocus: "ministryFocus",
+      ministry_focus: "ministryFocus",
+      supervisedzones: "supervisedZones",
+      supervised_zones: "supervisedZones",
+      notes: "notes",
+      maritalstatus: "maritalStatus",
+      marital_status: "maritalStatus",
+      weddinganniversarydate: "weddingAnniversaryDate",
+      wedding_anniversary_date: "weddingAnniversaryDate",
+      spousename: "spouseName",
+      spouse_name: "spouseName",
+      spouseoccupation: "spouseOccupation",
+      spouse_occupation: "spouseOccupation",
+      childrencount: "childrenCount",
+      children_count: "childrenCount",
+    };
+
+    if (fieldMap[lowerStr]) {
+      return fieldMap[lowerStr];
+    }
+
+    // Convert snake_case to camelCase
+    return str
+      .toLowerCase()
+      .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      .replace(/^[a-z]/, (letter) => letter.toLowerCase());
+  };
+
   // Parse CSV file
   const parseCSV = (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
@@ -170,7 +253,7 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
 
           const headers = lines[0]
             .split(",")
-            .map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
+            .map((h) => h.trim().replace(/^"|"$/g, ""));
           const data: any[] = [];
 
           for (let i = 1; i < lines.length; i++) {
@@ -182,20 +265,22 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
             headers.forEach((header, index) => {
               const value = values[index] || "";
               if (value) {
-                if (header === "yearsinministry") {
-                  row.yearsInMinistry = parseInt(value) || 0;
-                } else if (header === "dateofbirth" || header === "ordinationdate") {
+                const camelCaseKey = toCamelCase(header);
+                
+                // Handle special field types
+                if (camelCaseKey === "yearsInMinistry") {
+                  row.yearsInMinistry = parseFloat(value) || 0;
+                } else if (camelCaseKey === "dateOfBirth" || camelCaseKey === "ordinationDate" || camelCaseKey === "weddingAnniversaryDate") {
                   const date = new Date(value);
                   if (!isNaN(date.getTime())) {
-                    row[header === "dateofbirth" ? "dateOfBirth" : "ordinationDate"] =
-                      date.getTime();
+                    row[camelCaseKey] = date.getTime();
                   }
-                } else if (header === "ministryfocus" || header === "supervisedzones") {
-                  row[header === "ministryfocus" ? "ministryFocus" : "supervisedZones"] =
-                    value.split(",").map((v) => v.trim()).filter(Boolean);
+                } else if (camelCaseKey === "ministryFocus" || camelCaseKey === "supervisedZones") {
+                  row[camelCaseKey] = value.split(",").map((v) => v.trim()).filter(Boolean);
+                } else if (camelCaseKey === "childrenCount") {
+                  row.childrenCount = parseInt(value) || 0;
                 } else {
-                  const camelCase = header.replace(/([A-Z])/g, (g) => `_${g[0].toLowerCase()}`);
-                  row[header] = value;
+                  row[camelCaseKey] = value;
                 }
               }
             });
@@ -311,6 +396,12 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
         const date = new Date(data.ordinationDate);
         if (!isNaN(date.getTime())) {
           submitData.ordinationDate = date.getTime();
+        }
+      }
+      if (data.weddingAnniversaryDate) {
+        const date = new Date(data.weddingAnniversaryDate);
+        if (!isNaN(date.getTime())) {
+          submitData.weddingAnniversaryDate = date.getTime();
         }
       }
 
@@ -522,7 +613,6 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
                           <SelectContent>
                             <SelectItem value="male">Male</SelectItem>
                             <SelectItem value="female">Female</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -618,6 +708,108 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
                       </FormItem>
                     )}
                   />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Marital Information */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Marital Information</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Marital status and family details
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="maritalStatus"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marital Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select marital status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="single">Single</SelectItem>
+                              <SelectItem value="married">Married</SelectItem>
+                              <SelectItem value="divorced">Divorced</SelectItem>
+                              <SelectItem value="widowed">Widowed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {form.watch("maritalStatus") === "married" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="weddingAnniversaryDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Wedding Anniversary Date</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse full name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseOccupation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Occupation</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse occupation" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    <FormField
+                      control={form.control}
+                      name="childrenCount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Number of Children</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </div>
 

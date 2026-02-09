@@ -65,6 +65,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 // Type for user entry
 type UserEntry = {
@@ -76,7 +77,7 @@ type UserEntry = {
   phone?: string;
   whatsappNumber?: string;
   preferredName?: string;
-  gender?: "male" | "female" | "other";
+  gender?: "male" | "female";
   dateOfBirth?: number;
   ordinationDate?: number;
   homeAddress?: string;
@@ -88,8 +89,15 @@ type UserEntry = {
   commissioningDate?: number;
   occupation?: string;
   assignedZone?: string;
+  educationalBackground?: string;
   status?: "active" | "on_leave" | "inactive";
   overseerId?: Id<"users">;
+  profilePhotoId?: Id<"_storage">;
+  maritalStatus?: "single" | "married" | "divorced" | "widowed";
+  weddingAnniversaryDate?: number;
+  spouseName?: string;
+  spouseOccupation?: string;
+  childrenCount?: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -116,6 +124,43 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
     default:
       return "outline";
   }
+}
+
+// Component to display user photo
+function UserPhotoCell({
+  userId,
+  photoId,
+  userName,
+  token,
+}: {
+  userId: Id<"users">;
+  photoId?: Id<"_storage">;
+  userName: string;
+  token: string | null;
+}) {
+  const photoUrl = useQuery(
+    api.storage.getFileUrl,
+    token && photoId ? { token, storageId: photoId } : "skip"
+  );
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <Avatar className="h-10 w-10">
+      {photoUrl ? (
+        <AvatarImage src={photoUrl} alt="Profile" />
+      ) : (
+        <AvatarFallback className="text-xs">{getInitials(userName)}</AvatarFallback>
+      )}
+    </Avatar>
+  );
 }
 
 export default function UsersPage() {
@@ -205,9 +250,11 @@ export default function UsersPage() {
     }
   };
 
-  // Export to CSV
-  const handleExportCSV = () => {
-    if (!users || users.length === 0) {
+  // Export to CSV (supports individual or bulk export)
+  const handleExportCSV = (usersToExport?: UserEntry[]) => {
+    const exportUsers = usersToExport || users || [];
+    
+    if (exportUsers.length === 0) {
       toast.error("No users to export");
       return;
     }
@@ -221,12 +268,23 @@ export default function UsersPage() {
       "Preferred Name",
       "Gender",
       "Date of Birth",
+      "Marital Status",
+      "Wedding Anniversary",
+      "Spouse Name",
+      "Spouse Occupation",
+      "Children Count",
+      "Home Address",
+      "Qualification",
+      "Years in Ministry",
+      "Occupation",
+      "Assigned Zone",
+      "Educational Background",
       "Status",
       "Active",
       "Created At",
     ];
 
-    const rows = users.map((user) => [
+    const rows = exportUsers.map((user) => [
       user.name || "",
       user.email || "",
       user.role || "",
@@ -235,6 +293,17 @@ export default function UsersPage() {
       user.preferredName || "",
       user.gender || "",
       user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "",
+      user.maritalStatus || "",
+      user.weddingAnniversaryDate ? new Date(user.weddingAnniversaryDate).toLocaleDateString() : "",
+      user.spouseName || "",
+      user.spouseOccupation || "",
+      user.childrenCount !== undefined ? user.childrenCount.toString() : "",
+      user.homeAddress || "",
+      user.qualification || "",
+      user.yearsInMinistry !== undefined ? user.yearsInMinistry.toString() : "",
+      user.occupation || "",
+      user.assignedZone || "",
+      user.educationalBackground || "",
       user.status || "",
       user.isActive ? "Yes" : "No",
       user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "",
@@ -248,18 +317,23 @@ export default function UsersPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `users_${new Date().toISOString().split("T")[0]}.csv`);
+    const filename = usersToExport && usersToExport.length === 1
+      ? `user_${exportUsers[0].name.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`
+      : `users_${exportUsers.length}_${new Date().toISOString().split("T")[0]}.csv`;
+    link.setAttribute("download", filename);
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    toast.success("Users exported to CSV");
+    toast.success(`${exportUsers.length} user(s) exported to CSV`);
   };
 
-  // Export to PDF
-  const handleExportPDF = async () => {
-    if (!users || users.length === 0) {
+  // Export to PDF (supports individual or bulk export)
+  const handleExportPDF = async (usersToExport?: UserEntry[]) => {
+    const exportUsers = usersToExport || users || [];
+    
+    if (exportUsers.length === 0) {
       toast.error("No users to export");
       return;
     }
@@ -280,7 +354,7 @@ export default function UsersPage() {
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 11px; }
             th { background-color: #f2f2f2; font-weight: bold; }
             @media print { @page { margin: 1cm; } }
           </style>
@@ -288,6 +362,7 @@ export default function UsersPage() {
         <body>
           <h1>Users Export</h1>
           <p>Generated on: ${new Date().toLocaleString()}</p>
+          <p>Total Users: ${exportUsers.length}</p>
           <table>
             <thead>
               <tr>
@@ -295,12 +370,16 @@ export default function UsersPage() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Phone</th>
+                <th>Gender</th>
+                <th>Marital Status</th>
+                <th>Spouse Name</th>
+                <th>Children</th>
                 <th>Status</th>
                 <th>Active</th>
               </tr>
             </thead>
             <tbody>
-              ${users
+              ${exportUsers
                 .map(
                   (user) => `
                 <tr>
@@ -308,6 +387,10 @@ export default function UsersPage() {
                   <td>${user.email || ""}</td>
                   <td>${user.role || ""}</td>
                   <td>${user.phone || ""}</td>
+                  <td>${user.gender || ""}</td>
+                  <td>${user.maritalStatus || ""}</td>
+                  <td>${user.spouseName || ""}</td>
+                  <td>${user.childrenCount !== undefined ? user.childrenCount : ""}</td>
                   <td>${user.status || ""}</td>
                   <td>${user.isActive ? "Yes" : "No"}</td>
                 </tr>
@@ -324,12 +407,35 @@ export default function UsersPage() {
     printWindow.document.close();
     printWindow.print();
 
-    toast.success("Opening PDF preview");
+    toast.success(`Opening PDF preview for ${exportUsers.length} user(s)`);
+  };
+
+  // Helper to get photo URL for a user
+  const getUserPhotoUrl = (user: UserEntry) => {
+    if (!user.profilePhotoId || !token) return null;
+    // We'll use a query hook for each user, but for now return null
+    // The actual URL fetching will be done in the cell component
+    return null;
   };
 
   // Define columns for DataTable
   const columns = React.useMemo<ColumnDef<UserEntry>[]>(
     () => [
+      {
+        accessorKey: "photo",
+        header: "Photo",
+        cell: ({ row }) => {
+          const user = row.original;
+          return (
+            <UserPhotoCell
+              userId={user._id}
+              photoId={user.profilePhotoId}
+              userName={user.name}
+              token={token}
+            />
+          );
+        },
+      },
       {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
@@ -390,6 +496,29 @@ export default function UsersPage() {
                 <Badge variant="destructive" className="text-xs">
                   Inactive
                 </Badge>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "maritalStatus",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Marital Status" />,
+        cell: ({ row }) => {
+          const user = row.original;
+          if (!user.maritalStatus) return <div className="text-sm text-muted-foreground">-</div>;
+          return (
+            <div className="space-y-1">
+              <Badge variant="outline" className="text-xs">
+                {user.maritalStatus.charAt(0).toUpperCase() + user.maritalStatus.slice(1)}
+              </Badge>
+              {user.maritalStatus === "married" && (
+                <div className="text-xs text-muted-foreground">
+                  {user.spouseName && <div>Spouse: {user.spouseName}</div>}
+                  {user.childrenCount !== undefined && user.childrenCount > 0 && (
+                    <div>{user.childrenCount} child{user.childrenCount !== 1 ? "ren" : ""}</div>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -459,6 +588,25 @@ export default function UsersPage() {
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
+                    handleExportCSV([user]);
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleExportPDF([user]);
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export PDF
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setUserToDelete(user);
                     setDeleteDialogOpen(true);
                   }}
@@ -489,11 +637,11 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleExportCSV}>
+          <Button variant="outline" onClick={() => handleExportCSV()}>
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
-          <Button variant="outline" onClick={handleExportPDF}>
+          <Button variant="outline" onClick={() => handleExportPDF()}>
             <FileText className="mr-2 h-4 w-4" />
             Export PDF
           </Button>
@@ -569,7 +717,30 @@ export default function UsersPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              {selectedRows.length > 0 && (
+            {selectedRows.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleExportCSV(selectedRows);
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV ({selectedRows.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleExportPDF(selectedRows);
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export PDF ({selectedRows.length})
+                </Button>
                 <Button
                   variant="destructive"
                   size="sm"
@@ -579,7 +750,8 @@ export default function UsersPage() {
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Selected ({selectedRows.length})
                 </Button>
-              )}
+              </>
+            )}
               <Button onClick={() => setAddShepherdDialogOpen(true)}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 Add Shepherd

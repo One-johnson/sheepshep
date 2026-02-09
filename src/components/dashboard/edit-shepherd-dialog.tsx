@@ -44,7 +44,7 @@ const shepherdSchema = z.object({
   phone: z.string().optional(),
   whatsappNumber: z.string().optional(),
   preferredName: z.string().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
+  gender: z.enum(["male", "female"]).optional(),
   dateOfBirth: z.string().optional(),
   commissioningDate: z.string().optional(),
   occupation: z.string().optional(),
@@ -52,6 +52,12 @@ const shepherdSchema = z.object({
   status: z.enum(["active", "on_leave", "inactive"]).optional(),
   overseerId: z.string().optional(),
   educationalBackground: z.string().optional(),
+  // Marital information
+  maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+  weddingAnniversaryDate: z.string().optional(),
+  spouseName: z.string().optional(),
+  spouseOccupation: z.string().optional(),
+  childrenCount: z.number().min(0).optional(),
 });
 
 type ShepherdFormValues = z.infer<typeof shepherdSchema>;
@@ -65,7 +71,7 @@ interface EditShepherdDialogProps {
     phone?: string;
     whatsappNumber?: string;
     preferredName?: string;
-    gender?: "male" | "female" | "other";
+    gender?: "male" | "female";
     dateOfBirth?: number;
     commissioningDate?: number;
     occupation?: string;
@@ -74,6 +80,11 @@ interface EditShepherdDialogProps {
     overseerId?: Id<"users">;
     profilePhotoId?: Id<"_storage">;
     educationalBackground?: string;
+    maritalStatus?: "single" | "married" | "divorced" | "widowed";
+    weddingAnniversaryDate?: number;
+    spouseName?: string;
+    spouseOccupation?: string;
+    childrenCount?: number;
   };
 }
 
@@ -121,6 +132,13 @@ export function EditShepherdDialog({
       status: user.status || "active",
       overseerId: user.overseerId || "none",
       educationalBackground: user.educationalBackground || "",
+      maritalStatus: user.maritalStatus,
+      weddingAnniversaryDate: user.weddingAnniversaryDate
+        ? new Date(user.weddingAnniversaryDate).toISOString().split("T")[0]
+        : "",
+      spouseName: user.spouseName || "",
+      spouseOccupation: user.spouseOccupation || "",
+      childrenCount: user.childrenCount,
     },
   });
 
@@ -231,12 +249,20 @@ export function EditShepherdDialog({
         submitData.overseerId = data.overseerId as any;
       }
 
+      if (data.weddingAnniversaryDate) {
+        const date = new Date(data.weddingAnniversaryDate);
+        if (!isNaN(date.getTime())) {
+          submitData.weddingAnniversaryDate = date.getTime();
+        }
+      }
+
       // Include all other fields
       Object.keys(data).forEach((key) => {
         if (
           key !== "dateOfBirth" &&
           key !== "commissioningDate" &&
           key !== "overseerId" &&
+          key !== "weddingAnniversaryDate" &&
           data[key as keyof typeof data] !== undefined
         ) {
           submitData[key] = data[key as keyof typeof data];
@@ -405,11 +431,10 @@ export function EditShepherdDialog({
                             <SelectValue placeholder="Select gender" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
@@ -559,6 +584,210 @@ export function EditShepherdDialog({
                       <FormDescription>
                         Highest level of education completed
                       </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Marital Information */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Marital Information</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Marital status and family details
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="maritalStatus"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marital Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select marital status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="single">Single</SelectItem>
+                              <SelectItem value="married">Married</SelectItem>
+                              <SelectItem value="divorced">Divorced</SelectItem>
+                              <SelectItem value="widowed">Widowed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {form.watch("maritalStatus") === "married" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="weddingAnniversaryDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Wedding Anniversary Date</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse full name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseOccupation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Occupation</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse occupation" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    <FormField
+                      control={form.control}
+                      name="childrenCount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Number of Children</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Marital Information */}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-semibold">Marital Information</Label>
+                <p className="text-sm text-muted-foreground">
+                  Marital status and family details
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="maritalStatus"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Marital Status</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select marital status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="single">Single</SelectItem>
+                          <SelectItem value="married">Married</SelectItem>
+                          <SelectItem value="divorced">Divorced</SelectItem>
+                          <SelectItem value="widowed">Widowed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("maritalStatus") === "married" && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="weddingAnniversaryDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Wedding Anniversary Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="spouseName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Spouse Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Spouse full name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="spouseOccupation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Spouse Occupation</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Spouse occupation" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
+                <FormField
+                  control={form.control}
+                  name="childrenCount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Number of Children</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -48,7 +48,7 @@ const shepherdSchema = z.object({
   phone: z.string().optional(),
   whatsappNumber: z.string().optional(),
   preferredName: z.string().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
+  gender: z.enum(["male", "female"]).optional(),
   dateOfBirth: z.string().optional(),
   commissioningDate: z.string().optional(),
   occupation: z.string().optional(),
@@ -56,6 +56,12 @@ const shepherdSchema = z.object({
   status: z.enum(["active", "on_leave", "inactive"]).optional(),
   overseerId: z.string().optional(),
   educationalBackground: z.string().optional(),
+  // Marital information
+  maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+  weddingAnniversaryDate: z.string().optional(),
+  spouseName: z.string().optional(),
+  spouseOccupation: z.string().optional(),
+  childrenCount: z.number().min(0).optional(),
 });
 
 type ShepherdFormValues = z.infer<typeof shepherdSchema>;
@@ -100,6 +106,11 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       status: "active",
       overseerId: "none",
       educationalBackground: "",
+      maritalStatus: undefined,
+      weddingAnniversaryDate: "",
+      spouseName: "",
+      spouseOccupation: "",
+      childrenCount: undefined,
     },
   });
 
@@ -163,6 +174,11 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       "status",
       "overseerId",
       "educationalBackground",
+      "maritalStatus",
+      "weddingAnniversaryDate",
+      "spouseName",
+      "spouseOccupation",
+      "childrenCount",
     ];
 
     const exampleRow = [
@@ -180,6 +196,11 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       "active",
       "",
       "Bachelor of Science",
+      "married",
+      "2015-06-15",
+      "Jane Doe",
+      "Nurse",
+      "2",
     ];
 
     const csvContent = [headers, exampleRow]
@@ -199,6 +220,66 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
     toast.success("Template downloaded");
   };
 
+  // Convert lowercase/snake_case/camelCase header to camelCase
+  const toCamelCase = (str: string): string => {
+    const lowerStr = str.toLowerCase();
+    
+    // Special case: convert whatsAppNumber (any case) to whatsappNumber (schema uses lowercase 'a')
+    if (lowerStr === "whatsappnumber" || str === "whatsAppNumber") {
+      return "whatsappNumber";
+    }
+    
+    // If already camelCase (but not whatsAppNumber), return as is
+    if (/^[a-z]+[A-Z]/.test(str) && str !== "whatsAppNumber") {
+      return str;
+    }
+
+    // Handle common camelCase field mappings (for lowercase/snake_case input)
+    const fieldMap: Record<string, string> = {
+      email: "email",
+      password: "password",
+      name: "name",
+      phone: "phone",
+      whatsappnumber: "whatsappNumber",
+      whatsapp_number: "whatsappNumber",
+      preferredname: "preferredName",
+      preferred_name: "preferredName",
+      gender: "gender",
+      dateofbirth: "dateOfBirth",
+      date_of_birth: "dateOfBirth",
+      commissioningdate: "commissioningDate",
+      commissioning_date: "commissioningDate",
+      occupation: "occupation",
+      assignedzone: "assignedZone",
+      assigned_zone: "assignedZone",
+      status: "status",
+      overseerid: "overseerId",
+      overseer_id: "overseerId",
+      educationalbackground: "educationalBackground",
+      educational_background: "educationalBackground",
+      maritalstatus: "maritalStatus",
+      marital_status: "maritalStatus",
+      weddinganniversarydate: "weddingAnniversaryDate",
+      wedding_anniversary_date: "weddingAnniversaryDate",
+      spousename: "spouseName",
+      spouse_name: "spouseName",
+      spouseoccupation: "spouseOccupation",
+      spouse_occupation: "spouseOccupation",
+      childrencount: "childrenCount",
+      children_count: "childrenCount",
+    };
+
+    if (fieldMap[lowerStr]) {
+      return fieldMap[lowerStr];
+    }
+
+    // Convert snake_case to camelCase
+    return str
+      .toLowerCase()
+      .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      .replace(/^[a-z]/, (letter) => letter.toLowerCase());
+  };
+
   // Parse CSV file
   const parseCSV = (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
@@ -214,7 +295,7 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
 
           const headers = lines[0]
             .split(",")
-            .map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
+            .map((h) => h.trim().replace(/^"|"$/g, ""));
           const data: any[] = [];
 
           for (let i = 1; i < lines.length; i++) {
@@ -226,14 +307,20 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
             headers.forEach((header, index) => {
               const value = values[index] || "";
               if (value) {
-                if (header === "dateofbirth" || header === "commissioningdate") {
+                const camelCaseKey = toCamelCase(header);
+                
+                // Handle special field types
+                if (camelCaseKey === "dateOfBirth" || camelCaseKey === "commissioningDate" || camelCaseKey === "weddingAnniversaryDate") {
                   const date = new Date(value);
                   if (!isNaN(date.getTime())) {
-                    row[header === "dateofbirth" ? "dateOfBirth" : "commissioningDate"] =
-                      date.getTime();
+                    row[camelCaseKey] = date.getTime();
                   }
+                } else if (camelCaseKey === "overseerId" && value !== "none" && value !== "") {
+                  row.overseerId = value as any;
+                } else if (camelCaseKey === "childrenCount") {
+                  row.childrenCount = parseInt(value) || 0;
                 } else {
-                  row[header] = value;
+                  row[camelCaseKey] = value;
                 }
               }
             });
@@ -306,6 +393,12 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
         const date = new Date(data.commissioningDate);
         if (!isNaN(date.getTime())) {
           submitData.commissioningDate = date.getTime();
+        }
+      }
+      if (data.weddingAnniversaryDate) {
+        const date = new Date(data.weddingAnniversaryDate);
+        if (!isNaN(date.getTime())) {
+          submitData.weddingAnniversaryDate = date.getTime();
         }
       }
 
@@ -518,11 +611,10 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
                                 <SelectValue placeholder="Select gender" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
@@ -672,6 +764,108 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
                           <FormDescription>
                             Highest level of education completed
                           </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Marital Information */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Marital Information</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Marital status and family details
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="maritalStatus"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marital Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select marital status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="single">Single</SelectItem>
+                              <SelectItem value="married">Married</SelectItem>
+                              <SelectItem value="divorced">Divorced</SelectItem>
+                              <SelectItem value="widowed">Widowed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {form.watch("maritalStatus") === "married" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="weddingAnniversaryDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Wedding Anniversary Date</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse full name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseOccupation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Occupation</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse occupation" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    <FormField
+                      control={form.control}
+                      name="childrenCount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Number of Children</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

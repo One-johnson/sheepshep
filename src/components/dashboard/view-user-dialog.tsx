@@ -26,7 +26,7 @@ interface ViewUserDialogProps {
     phone?: string;
     whatsappNumber?: string;
     preferredName?: string;
-    gender?: "male" | "female" | "other";
+    gender?: "male" | "female";
     dateOfBirth?: number;
     ordinationDate?: number;
     commissioningDate?: number;

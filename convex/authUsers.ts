@@ -199,7 +199,7 @@ export const bulkAdd = mutation({
         phone: v.optional(v.string()),
         whatsappNumber: v.optional(v.string()),
         preferredName: v.optional(v.string()),
-        gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+        gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
         dateOfBirth: v.optional(v.number()),
         ordinationDate: v.optional(v.number()),
         homeAddress: v.optional(v.string()),
@@ -217,6 +217,19 @@ export const bulkAdd = mutation({
         ),
         overseerId: v.optional(v.id("users")),
         profilePhotoId: v.optional(v.id("_storage")),
+        // Marital information
+        maritalStatus: v.optional(
+          v.union(
+            v.literal("single"),
+            v.literal("married"),
+            v.literal("divorced"),
+            v.literal("widowed")
+          )
+        ),
+        weddingAnniversaryDate: v.optional(v.number()),
+        spouseName: v.optional(v.string()),
+        spouseOccupation: v.optional(v.string()),
+        childrenCount: v.optional(v.number()),
       })
     ),
   },
@@ -278,6 +291,11 @@ export const bulkAdd = mutation({
           status: userData.status,
           overseerId: userData.overseerId,
           profilePhotoId: userData.profilePhotoId,
+          maritalStatus: userData.maritalStatus,
+          weddingAnniversaryDate: userData.weddingAnniversaryDate,
+          spouseName: userData.spouseName,
+          spouseOccupation: userData.spouseOccupation,
+          childrenCount: userData.childrenCount,
         });
 
         created.push(userId);

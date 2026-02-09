@@ -45,7 +45,7 @@ const pastorSchema = z.object({
   phone: z.string().optional(),
   whatsappNumber: z.string().optional(),
   preferredName: z.string().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
+  gender: z.enum(["male", "female"]).optional(),
   dateOfBirth: z.string().optional(),
   ordinationDate: z.string().optional(),
   homeAddress: z.string().optional(),
@@ -54,6 +54,12 @@ const pastorSchema = z.object({
   ministryFocus: z.array(z.string()).optional(),
   supervisedZones: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  // Marital information
+  maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+  weddingAnniversaryDate: z.string().optional(),
+  spouseName: z.string().optional(),
+  spouseOccupation: z.string().optional(),
+  childrenCount: z.number().min(0).optional(),
 });
 
 type PastorFormValues = z.infer<typeof pastorSchema>;
@@ -67,7 +73,7 @@ interface EditPastorDialogProps {
     phone?: string;
     whatsappNumber?: string;
     preferredName?: string;
-    gender?: "male" | "female" | "other";
+    gender?: "male" | "female";
     dateOfBirth?: number;
     ordinationDate?: number;
     homeAddress?: string;
@@ -77,6 +83,11 @@ interface EditPastorDialogProps {
     supervisedZones?: string[];
     notes?: string;
     profilePhotoId?: Id<"_storage">;
+    maritalStatus?: "single" | "married" | "divorced" | "widowed";
+    weddingAnniversaryDate?: number;
+    spouseName?: string;
+    spouseOccupation?: string;
+    childrenCount?: number;
   };
 }
 
@@ -117,6 +128,13 @@ export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogP
       ministryFocus: user.ministryFocus || [],
       supervisedZones: user.supervisedZones || [],
       notes: user.notes || "",
+      maritalStatus: user.maritalStatus,
+      weddingAnniversaryDate: user.weddingAnniversaryDate
+        ? new Date(user.weddingAnniversaryDate).toISOString().split("T")[0]
+        : "",
+      spouseName: user.spouseName || "",
+      spouseOccupation: user.spouseOccupation || "",
+      childrenCount: user.childrenCount,
     },
   });
 
@@ -223,10 +241,23 @@ export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogP
           submitData.ordinationDate = date.getTime();
         }
       }
+      if (data.weddingAnniversaryDate) {
+        const date = new Date(data.weddingAnniversaryDate);
+        if (!isNaN(date.getTime())) {
+          submitData.weddingAnniversaryDate = date.getTime();
+        }
+      }
+
+      if (data.weddingAnniversaryDate) {
+        const date = new Date(data.weddingAnniversaryDate);
+        if (!isNaN(date.getTime())) {
+          submitData.weddingAnniversaryDate = date.getTime();
+        }
+      }
 
       // Include all other fields
       Object.keys(data).forEach((key) => {
-        if (key !== "dateOfBirth" && key !== "ordinationDate" && data[key as keyof typeof data] !== undefined) {
+        if (key !== "dateOfBirth" && key !== "ordinationDate" && key !== "weddingAnniversaryDate" && data[key as keyof typeof data] !== undefined) {
           submitData[key] = data[key as keyof typeof data];
         }
       });
@@ -395,11 +426,10 @@ export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogP
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
@@ -495,10 +525,112 @@ export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogP
                   </FormItem>
                     )}
                   />
-              </div>
-            </div>
+                  </div>
+                </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+                <Separator />
+
+                {/* Marital Information */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Marital Information</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Marital status and family details
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="maritalStatus"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marital Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select marital status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="single">Single</SelectItem>
+                              <SelectItem value="married">Married</SelectItem>
+                              <SelectItem value="divorced">Divorced</SelectItem>
+                              <SelectItem value="widowed">Widowed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {form.watch("maritalStatus") === "married" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="weddingAnniversaryDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Wedding Anniversary Date</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse full name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="spouseOccupation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Spouse Occupation</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Spouse occupation" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    <FormField
+                      control={form.control}
+                      name="childrenCount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Number of Children</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"

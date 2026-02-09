@@ -81,7 +81,7 @@ export const register = mutation({
     whatsappNumber: v.optional(v.string()),
     // Personal information
     preferredName: v.optional(v.string()),
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()), // Unix timestamp
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()), // Unix timestamp
@@ -102,6 +102,19 @@ export const register = mutation({
     // Relationships
     overseerId: v.optional(v.id("users")), // For shepherds, assign a pastor
     profilePhotoId: v.optional(v.id("_storage")),
+    // Marital information
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()), // Year of marriage (Unix timestamp)
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Verify token and check admin access for admin/pastor creation
@@ -178,9 +191,14 @@ export const register = mutation({
           assignedZone: args.assignedZone,
           educationalBackground: args.educationalBackground,
           status: args.status,
-          overseerId: args.overseerId,
-          profilePhotoId: args.profilePhotoId,
-        });
+        overseerId: args.overseerId,
+        profilePhotoId: args.profilePhotoId,
+        maritalStatus: args.maritalStatus,
+        weddingAnniversaryDate: args.weddingAnniversaryDate,
+        spouseName: args.spouseName,
+        spouseOccupation: args.spouseOccupation,
+        childrenCount: args.childrenCount,
+      });
 
         return { userId, success: true, isFirstAdmin: true };
       }
@@ -312,6 +330,11 @@ export const register = mutation({
       status: args.status,
       overseerId: args.overseerId,
       profilePhotoId: args.profilePhotoId,
+      maritalStatus: args.maritalStatus,
+      weddingAnniversaryDate: args.weddingAnniversaryDate,
+      spouseName: args.spouseName,
+      spouseOccupation: args.spouseOccupation,
+      childrenCount: args.childrenCount,
     });
 
     return { userId, success: true };
@@ -489,7 +512,7 @@ export const updateProfile = mutation({
     whatsappNumber: v.optional(v.string()),
     profilePhotoId: v.optional(v.id("_storage")),
     // Personal information
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()),
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()),
@@ -565,7 +588,7 @@ export const updateUserProfile = mutation({
     whatsappNumber: v.optional(v.string()),
     profilePhotoId: v.optional(v.id("_storage")),
     // Personal information
-    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()),
     // Pastor-specific fields
     ordinationDate: v.optional(v.number()),
@@ -587,6 +610,19 @@ export const updateUserProfile = mutation({
     isActive: v.optional(v.boolean()),
     overseerId: v.optional(v.id("users")),
     role: v.optional(v.union(v.literal("admin"), v.literal("pastor"), v.literal("shepherd"))),
+    // Marital information
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()),
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const currentUserId = await verifyToken(ctx, args.token);
@@ -656,6 +692,11 @@ export const updateUserProfile = mutation({
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.overseerId !== undefined) updates.overseerId = args.overseerId;
     if (args.role !== undefined) updates.role = args.role;
+    if (args.maritalStatus !== undefined) updates.maritalStatus = args.maritalStatus;
+    if (args.weddingAnniversaryDate !== undefined) updates.weddingAnniversaryDate = args.weddingAnniversaryDate;
+    if (args.spouseName !== undefined) updates.spouseName = args.spouseName;
+    if (args.spouseOccupation !== undefined) updates.spouseOccupation = args.spouseOccupation;
+    if (args.childrenCount !== undefined) updates.childrenCount = args.childrenCount;
 
     await ctx.db.patch(args.userId, updates);
 
