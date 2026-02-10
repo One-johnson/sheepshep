@@ -3,39 +3,47 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import {
   Home,
   Users,
+  UserCheck,
   ClipboardList,
+  CalendarCheck,
   MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  {
-    title: "Home",
-    url: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "Users",
-    url: "/dashboard/users",
-    icon: Users,
-  },
-  {
-    title: "Assignments",
-    url: "/dashboard/assignments",
-    icon: ClipboardList,
-  },
-  {
-    title: "More",
-    url: "/dashboard/more",
-    icon: MoreHorizontal,
-  },
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: ("admin" | "pastor" | "shepherd")[];
+}
+
+const allNavItems: NavItem[] = [
+  { title: "Home", url: "/dashboard", icon: Home },
+  { title: "Members", url: "/dashboard/members", icon: UserCheck, roles: ["shepherd"] },
+  { title: "Attendance", url: "/dashboard/attendance", icon: CalendarCheck, roles: ["shepherd"] },
+  { title: "Users", url: "/dashboard/users", icon: Users, roles: ["admin"] },
+  { title: "Shepherds", url: "/dashboard/shepherds", icon: Users, roles: ["pastor"] },
+  { title: "Assignments", url: "/dashboard/assignments", icon: ClipboardList, roles: ["admin", "pastor", "shepherd"] },
+  { title: "More", url: "/dashboard/more", icon: MoreHorizontal },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
+
+  const navItems = React.useMemo(() => {
+    if (!currentUser) return allNavItems.filter((i) => i.title === "Home" || i.title === "More");
+    return allNavItems.filter((item) => {
+      if (!item.roles) return true;
+      return item.roles.includes(currentUser.role);
+    });
+  }, [currentUser]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">

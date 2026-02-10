@@ -34,6 +34,15 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
   }
 }
 
+function getRoleBadgeClassName(role: string): string {
+  switch (role) {
+    case "pastor":
+      return "bg-blue-500 hover:bg-blue-600 text-white border-blue-500";
+    default:
+      return "";
+  }
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
@@ -148,7 +157,10 @@ export default function ProfilePage() {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <h2 className="text-2xl font-bold">{currentUser.name}</h2>
-                <Badge variant={getRoleBadgeVariant(currentUser.role)}>
+                <Badge 
+                  variant={getRoleBadgeVariant(currentUser.role)}
+                  className={getRoleBadgeClassName(currentUser.role)}
+                >
                   {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
                 </Badge>
               </div>

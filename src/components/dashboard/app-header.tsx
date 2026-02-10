@@ -31,6 +31,28 @@ import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer
 import { Badge } from "@/components/ui/badge";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 
+function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructive" | "outline" {
+  switch (role) {
+    case "admin":
+      return "destructive";
+    case "pastor":
+      return "default";
+    case "shepherd":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}
+
+function getRoleBadgeClassName(role: string): string {
+  switch (role) {
+    case "pastor":
+      return "bg-blue-500 hover:bg-blue-600 text-white border-blue-500";
+    default:
+      return "";
+  }
+}
+
 export function AppHeader() {
   const router = useRouter();
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -170,7 +192,7 @@ export function AppHeader() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="flex items-center gap-2 h-auto py-2 px-3"
+                      className="flex items-center gap-2 h-auto py-2 px-3 border-4"
                     >
                       <Avatar className="h-8 w-8">
                         {profilePhotoUrl ? (
@@ -185,9 +207,17 @@ export function AppHeader() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col items-start">
-                        <span className="text-sm font-medium leading-none">
-                          {currentUser.preferredName || currentUser.name}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium leading-none">
+                            {currentUser.preferredName || currentUser.name}
+                          </span>
+                          <Badge 
+                            variant={getRoleBadgeVariant(currentUser.role)} 
+                            className={`text-xs h-4 px-1.5 ${getRoleBadgeClassName(currentUser.role)}`}
+                          >
+                            {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                          </Badge>
+                        </div>
                         <span className="text-xs text-muted-foreground mt-1">
                           {currentUser.email}
                         </span>
@@ -198,9 +228,17 @@ export function AppHeader() {
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {currentUser.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium leading-none">
+                            {currentUser.name}
+                          </p>
+                          <Badge 
+                            variant={getRoleBadgeVariant(currentUser.role)} 
+                            className={`text-xs h-4 px-1.5 ${getRoleBadgeClassName(currentUser.role)}`}
+                          >
+                            {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                          </Badge>
+                        </div>
                         <p className="text-xs leading-none text-muted-foreground">
                           {currentUser.email}
                         </p>
@@ -228,7 +266,7 @@ export function AppHeader() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="md:hidden border-4"
                 onClick={() => router.push("/dashboard/profile")}
               >
                 <Avatar className="h-8 w-8">

@@ -512,6 +512,94 @@ export const changePassword = mutation({
   },
 });
 
+// Reset password (admin only, for shepherds and pastors)
+export const resetPassword = mutation({
+  args: {
+    token: v.string(),
+    userId: v.id("users"),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    // Check if current user is admin
+    const currentUser = await ctx.db.get(currentUserId);
+    if (!currentUser) {
+      throw new Error("User not found");
+    }
+
+    const currentUserDoc = currentUser as any;
+    if (currentUserDoc.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    // Get target user
+    const targetUser = await ctx.db.get(args.userId);
+    if (!targetUser) {
+      throw new Error("User not found");
+    }
+
+    const targetUserDoc = targetUser as any;
+
+    // Only allow resetting password for shepherds and pastors
+    if (targetUserDoc.role !== "shepherd" && targetUserDoc.role !== "pastor") {
+      throw new Error("Can only reset password for shepherds and pastors");
+    }
+
+    // Prevent resetting password for first admin even if they're a pastor
+    if (targetUserDoc.isFirstAdmin) {
+      throw new Error("Cannot reset password for the first admin");
+    }
+
+    // Validate password length
+    if (args.newPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters");
+    }
+
+    // Hash new password
+    const newPasswordHash = bcrypt.hashSync(args.newPassword, 10);
+
+    // Update password
+    await ctx.db.patch(args.userId, {
+      passwordHash: newPasswordHash,
+      updatedAt: Date.now(),
+    });
+
+    // Create audit log
+    try {
+      await ctx.db.insert("auditLogs", {
+        userId: currentUserId,
+        action: "password_reset",
+        entityType: "user",
+        entityId: args.userId,
+        details: `Admin reset password for ${targetUserDoc.name} (${targetUserDoc.email})`,
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      console.error("Failed to create audit log:", error);
+    }
+
+    // Notify admins about password reset
+    try {
+      await notifyAdmins(
+        ctx,
+        "user_updated",
+        "Password Reset",
+        `${currentUserDoc.name} reset password for ${targetUserDoc.name} (${targetUserDoc.email})`,
+        args.userId,
+        "user"
+      );
+    } catch (error) {
+      console.error("Failed to notify admins:", error);
+    }
+
+    return { success: true };
+  },
+});
+
 // Update user profile
 export const updateProfile = mutation({
   args: {

@@ -74,6 +74,15 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
   }
 }
 
+function getRoleBadgeClassName(role: string): string {
+  switch (role) {
+    case "pastor":
+      return "bg-blue-500 hover:bg-blue-600 text-white border-blue-500";
+    default:
+      return "";
+  }
+}
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -551,7 +560,10 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-2xl font-bold">{user.name}</h2>
-                <Badge variant={getRoleBadgeVariant(user.role)}>
+                <Badge 
+                  variant={getRoleBadgeVariant(user.role)}
+                  className={getRoleBadgeClassName(user.role)}
+                >
                   {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                 </Badge>
               </div>

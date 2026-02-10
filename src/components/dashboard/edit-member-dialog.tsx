@@ -123,7 +123,7 @@ export function EditMemberDialog({
       : "skip"
   );
   const shepherds = useQuery(
-    api.userAssignments.getShepherds,
+    api.attendance.getShepherds,
     token ? { token } : "skip"
   );
 

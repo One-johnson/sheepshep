@@ -1,10 +1,27 @@
 "use client";
 
+import * as React from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, UserCheck, UserCog, Bell, TrendingUp, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users,
+  UserCheck,
+  UserCog,
+  Bell,
+  TrendingUp,
+  Calendar,
+  ClipboardList,
+  AlertTriangle,
+  CalendarCheck,
+  FileText,
+  Heart,
+  ChevronRight,
+} from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -54,15 +71,34 @@ function ChartSkeleton(props: React.ComponentProps<typeof Card>) {
   );
 }
 
+function formatDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function DashboardPage() {
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  
+
   const stats = useQuery(
     api.dashboard.getStats,
     token ? { token } : "skip"
   );
+  const currentUser = useQuery(
+    api.auth.getCurrentUser,
+    token ? { token } : "skip"
+  );
+  const shepherdData = useQuery(
+    api.dashboard.getShepherdDashboardData,
+    token && currentUser?.role === "shepherd" ? { token } : "skip"
+  );
 
   const isLoading = stats === undefined;
+  const isShepherd = currentUser?.role === "shepherd";
+  const isAdmin = currentUser?.role === "admin";
+  const isPastor = currentUser?.role === "pastor";
 
   const memberStatusData = stats?.statusCounts
     ? [
@@ -83,16 +119,62 @@ export default function DashboardPage() {
     : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome to your church management dashboard
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
+          {isShepherd
+            ? "Your flock at a glance"
+            : isPastor
+              ? "Your zone overview"
+              : "Welcome to your church management dashboard"}
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Shepherd Quick Actions (mobile-first) */}
+      {isShepherd && !isLoading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+            <Link href="/dashboard/attendance">
+              <CalendarCheck className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium">Mark Attendance</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+            <Link href="/dashboard/members">
+              <UserCheck className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium">My Members</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+            <Link href="/dashboard/assignments">
+              <ClipboardList className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium">Assignments</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+            <Link href="/dashboard/reports">
+              <FileText className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium">Reports</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+            <Link href="/dashboard/prayer-requests">
+              <Heart className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium">Prayer</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+            <Link href="/dashboard/groups">
+              <Users className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium">My Groups</span>
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Stats Grid - role-based */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           <>
             <StatsCardSkeleton />
@@ -104,58 +186,337 @@ export default function DashboardPage() {
           <>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+                <CardTitle className="text-sm font-medium">My Members</CardTitle>
                 <UserCog className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  Active members in the system
+                  {isShepherd ? "Members in your care" : "Active members"}
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Shepherds</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalShepherds ?? 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  Active shepherds
-                </p>
-              </CardContent>
-            </Card>
+            {isShepherd && (
+              <>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Assignments</CardTitle>
+                    <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.pendingAssignments ?? 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Pending or in progress
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Awaiting Approval</CardTitle>
+                    <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.pendingAttendance ?? 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Attendance pending
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">At-Risk</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.atRiskMembers ?? 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Members need follow-up
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pastors</CardTitle>
-                <UserCheck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalPastors ?? 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  Active pastors
-                </p>
-              </CardContent>
-            </Card>
+            {!isShepherd && (
+              <>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Shepherds</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.totalShepherds ?? 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Active shepherds
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Pastors</CardTitle>
+                    <UserCheck className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.totalPastors ?? 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Active pastors
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Unread notifications
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Notifications</CardTitle>
-                <Bell className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  Unread notifications
-                </p>
-              </CardContent>
-            </Card>
+            {isShepherd && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Unread notifications
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>
+
+      {/* Shepherd-specific sections (mobile-first collapsible cards) */}
+      {isShepherd && shepherdData && (
+        <div className="space-y-4">
+          {/* My Groups */}
+          {(shepherdData.myGroups?.length ?? 0) > 0 && (
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg">My Groups</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Groups you lead - view members, mark attendance
+                    </CardDescription>
+                  </div>
+                  <Button asChild size="sm" variant="ghost" className="shrink-0">
+                    <Link href="/dashboard/groups">
+                      View all
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {shepherdData.myGroups.slice(0, 4).map((g) => {
+                  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                  const dayLabel = g.meetingDay !== undefined && g.meetingDay !== null ? days[g.meetingDay] : "";
+                  return (
+                    <Link
+                      key={g._id}
+                      href={`/dashboard/groups/${g._id}`}
+                      className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <p className="text-sm font-medium">{g.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Meets {dayLabel}
+                      </p>
+                    </Link>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pending Assignments */}
+          {(shepherdData.pendingAssignments?.length ?? 0) > 0 && (
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg">Pending Assignments</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Submit reports for completed visits
+                    </CardDescription>
+                  </div>
+                  <Button asChild size="sm" variant="ghost" className="shrink-0">
+                    <Link href="/dashboard/assignments">
+                      View all
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {shepherdData.pendingAssignments.slice(0, 3).map((a) => (
+                  <Link
+                    key={a._id}
+                    href="/dashboard/assignments"
+                    className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{a.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{a.memberName}</p>
+                        {a.dueDate && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Due {formatDate(a.dueDate)}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant={a.priority === "high" ? "destructive" : "secondary"} className="shrink-0 text-xs">
+                        {a.assignmentType.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* At-Risk Members */}
+          {(shepherdData.atRiskMembers?.length ?? 0) > 0 && (
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg">At-Risk Members</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Members needing follow-up
+                    </CardDescription>
+                  </div>
+                  <Button asChild size="sm" variant="ghost" className="shrink-0">
+                    <Link href="/dashboard/members">
+                      View all
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {shepherdData.atRiskMembers.slice(0, 3).map((m) => (
+                  <Link
+                    key={m._id}
+                    href="/dashboard/members"
+                    className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">
+                          {m.firstName} {m.lastName}
+                        </p>
+                        {m.lastAttendanceDate && (
+                          <p className="text-xs text-muted-foreground">
+                            Last seen {formatDate(m.lastAttendanceDate)}
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        variant={
+                          m.attendanceRiskLevel === "high"
+                            ? "destructive"
+                            : m.attendanceRiskLevel === "medium"
+                              ? "secondary"
+                              : "outline"
+                        }
+                        className="shrink-0 capitalize text-xs"
+                      >
+                        {m.attendanceRiskLevel}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Reports */}
+          {(shepherdData.recentReports?.length ?? 0) > 0 && (
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg">Recent Reports</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Your submitted reports
+                    </CardDescription>
+                  </div>
+                  <Button asChild size="sm" variant="ghost" className="shrink-0">
+                    <Link href="/dashboard/reports">
+                      View all
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {shepherdData.recentReports.slice(0, 3).map((r) => (
+                  <Link
+                    key={r._id}
+                    href="/dashboard/reports"
+                    className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <p className="text-sm font-medium truncate">{r.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">{r.memberName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatDate(r.createdAt)} · {r.reportType.replace("_", " ")}
+                    </p>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Open Prayer Requests */}
+          {(shepherdData.openPrayerRequests?.length ?? 0) > 0 && (
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg">Open Prayer Requests</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Awaiting prayer & response
+                    </CardDescription>
+                  </div>
+                  <Button asChild size="sm" variant="ghost" className="shrink-0">
+                    <Link href="/dashboard/prayer-requests">
+                      View all
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {shepherdData.openPrayerRequests.slice(0, 3).map((pr) => (
+                  <Link
+                    key={pr._id}
+                    href="/dashboard/prayer-requests"
+                    className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <p className="text-sm font-medium truncate">{pr.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">{pr.memberName}</p>
+                    <Badge variant={pr.priority === "urgent" ? "destructive" : "secondary"} className="mt-1 text-xs">
+                      {pr.priority}
+                    </Badge>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Charts Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

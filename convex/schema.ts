@@ -148,6 +148,7 @@ export default defineSchema({
   attendance: defineTable({
     memberId: v.optional(v.id("members")), // For member attendance
     userId: v.optional(v.id("users")), // For shepherd/user attendance
+    groupId: v.optional(v.id("groups")), // When set: group meeting attendance (leader takes for group members on meeting day)
     date: v.number(), // Unix timestamp for the attendance date
     attendanceStatus: v.union(
       v.literal("present"),
@@ -170,6 +171,7 @@ export default defineSchema({
   })
     .index("by_member", ["memberId"])
     .index("by_user", ["userId"])
+    .index("by_group", ["groupId"])
     .index("by_date", ["date"])
     .index("by_submitted_by", ["submittedBy"])
     .index("by_approval_status", ["approvalStatus"]),
@@ -449,18 +451,7 @@ export default defineSchema({
   groups: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
-    groupType: v.union(
-      v.literal("bacenta"),
-      v.literal("bible_study"),
-      v.literal("prayer_group"),
-      v.literal("youth_group"),
-      v.literal("women_group"),
-      v.literal("men_group"),
-      v.literal("ushers"),
-      v.literal("first_service_choir"),
-      v.literal("second_service_choir"),
-      v.literal("other")
-    ),
+    meetingDay: v.optional(v.number()), // 0=Sunday, 1=Monday, ... 6=Saturday - day when group meets
     createdBy: v.id("users"),
     leaderId: v.optional(v.id("users")), // Group leader (shepherd/pastor)
     isActive: v.boolean(),
@@ -468,8 +459,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_created_by", ["createdBy"])
-    .index("by_leader", ["leaderId"])
-    .index("by_type", ["groupType"]),
+    .index("by_leader", ["leaderId"]),
 
   // Group members - many-to-many relationship (members can belong to multiple groups)
   groupMembers: defineTable({

@@ -154,6 +154,29 @@ export const create = mutation({
     const member = await ctx.db.get(memberId);
     const memberName = `${args.firstName} ${args.lastName}`;
 
+    // Auto-add to groups the shepherd leads
+    const shepherdGroups = await ctx.db.query("groups").collect();
+    const groupsLedByShepherd = shepherdGroups.filter(
+      (g) => g.isActive && g.leaderId === args.shepherdId
+    );
+    for (const g of groupsLedByShepherd) {
+      const existing = await ctx.db
+        .query("groupMembers")
+        .withIndex("by_group_member", (q) =>
+          q.eq("groupId", g._id).eq("memberId", memberId)
+        )
+        .first();
+      if (!existing) {
+        await ctx.db.insert("groupMembers", {
+          groupId: g._id,
+          memberId,
+          role: "member",
+          joinedAt: Date.now(),
+          addedBy: userId,
+        });
+      }
+    }
+
     // Notify the shepherd
     await createNotification(
       ctx,

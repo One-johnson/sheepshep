@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { ConvexReactClient } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -39,6 +40,7 @@ import {
   UserCheck,
   UserX,
   UserCog,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AddMemberDialog } from "@/components/dashboard/add-member-dialog";
@@ -211,10 +213,17 @@ export default function MembersPage() {
   const [bulkNewStatus, setBulkNewStatus] = React.useState<"new_convert" | "first_timer" | "established" | "visitor" | "inactive" | "">("");
   const [isBulkChangingStatus, setIsBulkChangingStatus] = React.useState(false);
 
+  // Get current user for role checking
+  const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
+  const router = useRouter();
+  const isAdmin = currentUser?.role === "admin";
+  const isPastor = currentUser?.role === "pastor";
+  const isShepherd = currentUser?.role === "shepherd";
+
   // Fetch data
   const allMembers = useQuery(api.members.list, token ? { token } : "skip");
   const stats = useQuery(api.members.getStats, token ? { token } : "skip");
-  const shepherds = useQuery(api.userAssignments.getShepherds, token ? { token } : "skip");
+  const shepherds = useQuery(api.attendance.getShepherds, token ? { token } : "skip");
   const deleteMember = useMutation(api.members.remove);
   const bulkDeleteMembers = useMutation(api.members.bulkDelete);
   const updateMember = useMutation(api.members.update);
@@ -771,17 +780,21 @@ export default function MembersPage() {
                   <UserCog className="mr-2 h-4 w-4" />
                   Change Status
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setMemberToDelete(member);
-                    setDeleteDialogOpen(true);
-                  }}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setMemberToDelete(member);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           );
@@ -816,10 +829,20 @@ export default function MembersPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Members</h1>
-          <p className="text-muted-foreground">Manage church members</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="flex-shrink-0 md:hidden"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold">Members</h1>
+            <p className="text-muted-foreground">Manage church members</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {selectedRows.length > 0 && (
@@ -848,27 +871,31 @@ export default function MembersPage() {
                 <UserCog className="mr-2 h-4 w-4" />
                 Change Status ({selectedRows.length})
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (selectedRows.length === 1) {
-                    setMemberToDelete(selectedRows[0]);
-                    setDeleteDialogOpen(true);
-                  } else {
-                    setDeleteDialogOpen(true);
-                  }
-                }}
-                disabled={isDeleting}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Selected ({selectedRows.length})
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (selectedRows.length === 1) {
+                      setMemberToDelete(selectedRows[0]);
+                      setDeleteDialogOpen(true);
+                    } else {
+                      setDeleteDialogOpen(true);
+                    }
+                  }}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedRows.length})
+                </Button>
+              )}
             </>
           )}
-          <Button onClick={() => setAddMemberDialogOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Member
-          </Button>
+          {(isAdmin || isShepherd) && (
+            <Button onClick={() => setAddMemberDialogOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add Member
+            </Button>
+          )}
         </div>
       </div>
 

@@ -12,21 +12,25 @@ const carouselSlides = [
     image: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80",
     title: "Manage Your Flock with Ease",
     description: "Comprehensive church management system designed to help shepherds, pastors, and administrators care for their congregation.",
+    scripture: "Feed the flock of God which is among you, taking the oversight thereof, not by constraint, but willingly; not for filthy lucre, but of a ready mind; — 1 Peter 5:2 (KJV)",
   },
   {
     image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200&h=600&fit=crop&q=80",
     title: "Track Member Attendance",
     description: "Easily record and monitor member attendance with automated reminders and at-risk member alerts.",
+    scripture: "Not forsaking the assembling of ourselves together, as the manner of some is; but exhorting one another: and so much the more, as ye see the day approaching. — Hebrews 10:25 (KJV)",
   },
   {
     image: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=1200&h=600&fit=crop&q=80",
     title: "Organize Groups & Events",
     description: "Create and manage groups like bacenta, bible study, choirs, and organize church events seamlessly.",
+    scripture: "Behold, how good and how pleasant it is for brethren to dwell together in unity! — Psalm 133:1 (KJV)",
   },
   {
     image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&h=600&fit=crop&q=80",
     title: "Prayer Requests & Reports",
     description: "Facilitate communication between shepherds, pastors, and members through prayer requests and visitation reports.",
+    scripture: "Confess your faults one to another, and pray one for another, that ye may be healed. The effectual fervent prayer of a righteous man availeth much. — James 5:16 (KJV)",
   },
 ];
 
@@ -90,6 +94,9 @@ export function HeroCarousel() {
                   </h2>
                   <p className="text-lg text-white/90 md:text-xl drop-shadow-md">
                     {slide.description}
+                  </p>
+                  <p className="text-base md:text-lg text-white/80 italic drop-shadow-md font-serif">
+                    {slide.scripture}
                   </p>
                 </div>
               </div>

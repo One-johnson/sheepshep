@@ -3,25 +3,15 @@ import { v } from "convex/values";
 import { verifyToken } from "./auth";
 import { createNotification, notifyAdmins } from "./notificationHelpers";
 
-// Create group
+// Create group - admin only. Requires meetingDay and leaderId (shepherd).
+// When shepherd is assigned, their members are automatically added as group members.
 export const create = mutation({
   args: {
     token: v.string(),
     name: v.string(),
     description: v.optional(v.string()),
-    groupType: v.union(
-      v.literal("bacenta"),
-      v.literal("bible_study"),
-      v.literal("prayer_group"),
-      v.literal("youth_group"),
-      v.literal("women_group"),
-      v.literal("men_group"),
-      v.literal("ushers"),
-      v.literal("first_service_choir"),
-      v.literal("second_service_choir"),
-      v.literal("other")
-    ),
-    leaderId: v.optional(v.id("users")),
+    meetingDay: v.number(), // Required: 0=Sunday, 1=Monday, ... 6=Saturday
+    leaderId: v.id("users"), // Required: shepherd to assign as group leader
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
@@ -34,50 +24,64 @@ export const create = mutation({
       throw new Error("User not found");
     }
 
-    // Admin, pastor, or shepherd can create groups
-    if (user.role !== "admin" && user.role !== "pastor" && user.role !== "shepherd") {
-      throw new Error("Unauthorized - only admins, pastors, and shepherds can create groups");
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized - only admins can create groups");
     }
 
-    // Verify leader if provided
-    if (args.leaderId) {
-      const leader = await ctx.db.get(args.leaderId);
-      if (!leader || (leader.role !== "shepherd" && leader.role !== "pastor")) {
-        throw new Error("Invalid leader - must be a shepherd or pastor");
-      }
+    const leader = await ctx.db.get(args.leaderId);
+    if (!leader || leader.role !== "shepherd") {
+      throw new Error("Invalid leader - must be a shepherd");
     }
 
     const groupId = await ctx.db.insert("groups", {
       name: args.name,
       description: args.description,
-      groupType: args.groupType,
+      meetingDay: args.meetingDay,
       createdBy: userId,
-      leaderId: args.leaderId || userId,
+      leaderId: args.leaderId,
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
 
-    // Notify the leader
-    const leaderId = args.leaderId || userId;
-    if (leaderId !== userId) {
-      await createNotification(
-        ctx,
-        leaderId,
-        "group_created",
-        "New Group Created",
-        `You have been assigned as leader of "${args.name}"`,
-        groupId,
-        "group"
-      );
+    // Auto-add all members belonging to the shepherd as group members
+    const shepherdMembers = await ctx.db
+      .query("members")
+      .withIndex("by_shepherd", (q) => q.eq("shepherdId", args.leaderId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    for (const member of shepherdMembers) {
+      const existing = await ctx.db
+        .query("groupMembers")
+        .withIndex("by_group_member", (q) => q.eq("groupId", groupId).eq("memberId", member._id))
+        .first();
+      if (!existing) {
+        await ctx.db.insert("groupMembers", {
+          groupId,
+          memberId: member._id,
+          role: "member",
+          joinedAt: Date.now(),
+          addedBy: userId,
+        });
+      }
     }
 
-    // Notify admins
+    await createNotification(
+      ctx,
+      args.leaderId,
+      "group_created",
+      "New Group Assigned",
+      `You have been assigned as leader of "${args.name}". Your ${shepherdMembers.length} members have been added.`,
+      groupId,
+      "group"
+    );
+
     await notifyAdmins(
       ctx,
       "group_created",
       "New Group Created",
-      `${user.name} created a new group: ${args.name}`,
+      `${user.name} created group "${args.name}" and assigned to ${leader.name}`,
       groupId,
       "group"
     );
@@ -86,7 +90,7 @@ export const create = mutation({
   },
 });
 
-// Get group by ID
+// Get group by ID - admin or group leader can access
 export const getById = query({
   args: {
     token: v.string(),
@@ -94,55 +98,111 @@ export const getById = query({
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
+    if (!userId) throw new Error("Unauthorized");
 
-    return await ctx.db.get(args.groupId);
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const group = await ctx.db.get(args.groupId);
+    if (!group) return null;
+
+    if (user.role === "admin" || group.leaderId === userId) {
+      return group;
+    }
+    // Pastors could see groups of shepherds they oversee
+    if (user.role === "pastor" && group.leaderId) {
+      const leader = await ctx.db.get(group.leaderId);
+      if (leader?.overseerId === userId) return group;
+    }
+    return null;
   },
 });
 
-// List groups
+// List groups for shepherd (groups they lead) - for dashboard and my groups
+export const listByLeader = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) throw new Error("Unauthorized");
+
+    let groups = await ctx.db.query("groups").collect();
+    groups = groups.filter((g) => g.isActive && g.leaderId === userId);
+
+    const withMemberCount = await Promise.all(
+      groups.map(async (g) => {
+        const members = await ctx.db
+          .query("groupMembers")
+          .withIndex("by_group", (q) => q.eq("groupId", g._id))
+          .collect();
+        return { ...g, memberCount: members.length };
+      })
+    );
+
+    return withMemberCount.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+// List groups for attendance - only shepherds (their groups with meeting day and members)
+export const listForAttendance = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) throw new Error("Unauthorized");
+
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+
+    if (user.role !== "shepherd") {
+      return []; // Only shepherds mark group attendance
+    }
+
+    let groups = await ctx.db.query("groups").collect();
+    groups = groups.filter(
+      (g) => g.isActive && g.leaderId === userId && g.meetingDay !== undefined && g.meetingDay !== null
+    );
+
+    const groupsWithMembers = [];
+    for (const group of groups) {
+      const members = await ctx.db
+        .query("groupMembers")
+        .withIndex("by_group", (q) => q.eq("groupId", group._id))
+        .collect();
+      if (members.length > 0) {
+        groupsWithMembers.push({ ...group, memberCount: members.length });
+      }
+    }
+
+    return groupsWithMembers.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+// List groups - admin sees all; shepherd sees only groups they lead
 export const list = query({
   args: {
     token: v.string(),
-    groupType: v.optional(
-      v.union(
-        v.literal("bacenta"),
-        v.literal("bible_study"),
-        v.literal("prayer_group"),
-        v.literal("youth_group"),
-        v.literal("women_group"),
-        v.literal("men_group"),
-        v.literal("ushers"),
-        v.literal("first_service_choir"),
-        v.literal("second_service_choir"),
-        v.literal("other")
-      )
-    ),
     leaderId: v.optional(v.id("users")),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
+    if (!userId) throw new Error("Unauthorized");
+
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
 
     let groups = await ctx.db.query("groups").collect();
 
-    // Apply filters
-    if (args.groupType) {
-      groups = groups.filter((g) => g.groupType === args.groupType);
+    if (user.role === "shepherd") {
+      groups = groups.filter((g) => g.leaderId === userId);
     }
+    // Admin and pastor see all
 
-    if (args.leaderId) {
-      groups = groups.filter((g) => g.leaderId === args.leaderId);
-    }
-
-    if (args.isActive !== undefined) {
-      groups = groups.filter((g) => g.isActive === args.isActive);
-    }
+    if (args.leaderId) groups = groups.filter((g) => g.leaderId === args.leaderId);
+    if (args.isActive !== undefined) groups = groups.filter((g) => g.isActive === args.isActive);
 
     return groups.sort((a, b) => b.createdAt - a.createdAt);
   },
@@ -155,20 +215,7 @@ export const update = mutation({
     groupId: v.id("groups"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    groupType: v.optional(
-      v.union(
-        v.literal("bacenta"),
-        v.literal("bible_study"),
-        v.literal("prayer_group"),
-        v.literal("youth_group"),
-        v.literal("women_group"),
-        v.literal("men_group"),
-        v.literal("ushers"),
-        v.literal("first_service_choir"),
-        v.literal("second_service_choir"),
-        v.literal("other")
-      )
-    ),
+    meetingDay: v.optional(v.number()),
     leaderId: v.optional(v.id("users")),
     isActive: v.optional(v.boolean()),
   },
@@ -188,14 +235,19 @@ export const update = mutation({
       throw new Error("User not found");
     }
 
-    // Check permissions - creator, leader, admin, or pastor can update
-    if (
-      user.role !== "admin" &&
-      user.role !== "pastor" &&
-      group.createdBy !== userId &&
-      group.leaderId !== userId
-    ) {
+    // Admin can update anything; shepherd (leader) can update name, description only
+    const isAdmin = user.role === "admin";
+    const isLeader = group.leaderId === userId;
+
+    if (!isAdmin && !isLeader) {
       throw new Error("Unauthorized");
+    }
+
+    if (isLeader && !isAdmin) {
+      // Shepherd can only update name and description
+      if (args.meetingDay !== undefined || args.leaderId !== undefined || args.isActive !== undefined) {
+        throw new Error("Only admins can change meeting day, type, leader, or status");
+      }
     }
 
     const updates: any = {
@@ -204,13 +256,41 @@ export const update = mutation({
 
     if (args.name !== undefined) updates.name = args.name;
     if (args.description !== undefined) updates.description = args.description;
-    if (args.groupType !== undefined) updates.groupType = args.groupType;
+    if (args.meetingDay !== undefined) updates.meetingDay = args.meetingDay;
     if (args.leaderId !== undefined) updates.leaderId = args.leaderId;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     await ctx.db.patch(args.groupId, updates);
 
     const updatedGroup = await ctx.db.get(args.groupId);
+
+    // When leaderId changes: remove old members, add new leader's members
+    if (args.leaderId !== undefined && args.leaderId !== group.leaderId) {
+      const newLeader = await ctx.db.get(args.leaderId);
+      if (newLeader && newLeader.role === "shepherd") {
+        const existingGroupMembers = await ctx.db
+          .query("groupMembers")
+          .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+          .collect();
+        for (const gm of existingGroupMembers) {
+          await ctx.db.delete(gm._id);
+        }
+        const shepherdMembers = await ctx.db
+          .query("members")
+          .withIndex("by_shepherd", (q) => q.eq("shepherdId", args.leaderId!))
+          .filter((q) => q.eq(q.field("isActive"), true))
+          .collect();
+        for (const member of shepherdMembers) {
+          await ctx.db.insert("groupMembers", {
+            groupId: args.groupId,
+            memberId: member._id,
+            role: "member",
+            joinedAt: Date.now(),
+            addedBy: userId,
+          });
+        }
+      }
+    }
 
     // Notify the leader if changed
     if (args.leaderId !== undefined && args.leaderId !== group.leaderId) {

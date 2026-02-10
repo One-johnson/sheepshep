@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,7 @@ import {
   CheckSquare,
   X,
   ArrowRight,
+  ArrowLeft,
   Building2,
   UserCog,
   History,
@@ -61,6 +63,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function AssignmentsPage() {
+  const router = useRouter();
   const [token, setToken] = React.useState<string | null>(null);
   const [isClient, setIsClient] = React.useState(false);
 
@@ -68,23 +71,33 @@ export default function AssignmentsPage() {
     setIsClient(true);
     setToken(localStorage.getItem("authToken"));
   }, []);
+
+  // Get current user for role checking
+  const currentUser = useQuery(
+    api.auth.getCurrentUser,
+    token ? { token } : "skip"
+  );
+
+  const isAdmin = currentUser?.role === "admin";
+  const isPastor = currentUser?.role === "pastor";
+  const isShepherd = currentUser?.role === "shepherd";
   
-  // Queries
+  // Queries (getStats is admin/pastor only - shepherds see assignment list via taskAssignments)
   const stats = useQuery(
     api.userAssignments.getStats,
-    token ? { token } : "skip"
+    token && (isAdmin || isPastor) ? { token } : "skip"
   );
   const hierarchy = useQuery(
     api.userAssignments.getHierarchy,
-    token ? { token } : "skip"
+    token && isAdmin ? { token } : "skip" // Only admins can see full hierarchy
   );
   const pastors = useQuery(
     api.userAssignments.getPastors,
-    token ? { token } : "skip"
+    token && (isAdmin || isPastor) ? { token } : "skip"
   );
   const allZones = useQuery(
     api.userAssignments.getAllZones,
-    token ? { token } : "skip"
+    token && (isAdmin || isPastor) ? { token } : "skip"
   );
   
   // Member assignment queries
@@ -94,7 +107,7 @@ export default function AssignmentsPage() {
   );
   const memberStats = useQuery(
     api.memberAssignments.getMemberAssignmentStats,
-    token ? { token } : "skip"
+    token && (isAdmin || isPastor) ? { token } : "skip"
   );
   
   // Task assignments query
@@ -158,10 +171,10 @@ export default function AssignmentsPage() {
   const deleteAssignment = useMutation(api.assignments.remove);
   const bulkDeleteAssignments = useMutation(api.assignments.bulkDelete);
 
-  // Get filtered shepherds
+  // Get filtered shepherds (admin/pastor only - shepherds see their own assignments)
   const shepherdsQuery = useQuery(
     api.userAssignments.getShepherds,
-    token
+    token && (isAdmin || isPastor)
       ? {
           token,
           pastorId:
@@ -518,7 +531,9 @@ export default function AssignmentsPage() {
       const member = members?.find((m) => m._id === assignment.memberId);
       const shepherd = shepherdsQuery?.find((s) => s._id === assignment.shepherdId);
       const memberName = member ? `${member.firstName} ${member.lastName}` : "Unknown";
-      const shepherdName = shepherd?.name || "Unknown";
+      const shepherdName = isShepherd && assignment.shepherdId === currentUser?._id
+        ? currentUser.name
+        : (shepherd?.name || "Unknown");
       
       return [
         assignment.title,
@@ -608,7 +623,9 @@ export default function AssignmentsPage() {
                   const member = members?.find((m) => m._id === assignment.memberId);
                   const shepherd = shepherdsQuery?.find((s) => s._id === assignment.shepherdId);
                   const memberName = member ? `${member.firstName} ${member.lastName}` : "Unknown";
-                  const shepherdName = shepherd?.name || "Unknown";
+                  const shepherdName = isShepherd && assignment.shepherdId === currentUser?._id
+                    ? currentUser.name
+                    : (shepherd?.name || "Unknown");
                   
                   return `
                     <tr>
@@ -681,39 +698,67 @@ export default function AssignmentsPage() {
     );
   }
 
+  // Only allow admin and pastor access
+  if (currentUser === undefined) {
+    return (
+      <div className="container mx-auto p-4 space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-2 sm:p-4 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Assignments</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Manage organizational structure and zone assignments
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-4 min-w-0">
           <Button
-            onClick={() => setBulkAssignDialogOpen(true)}
-            disabled={selectedShepherds.size === 0}
-            className="w-full sm:w-auto"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="flex-shrink-0 md:hidden"
           >
-            <UserCheck className="mr-2 h-4 w-4" />
-            Bulk Assign ({selectedShepherds.size})
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Button 
-            onClick={() => setAssignDialogOpen(true)}
-            className="w-full sm:w-auto"
-            size="sm"
-          >
-            <UserCog className="mr-2 h-4 w-4" />
-            Assign Shepherd
-          </Button>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold">Assignments</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              {isShepherd
+                ? "Your visitation and prayer assignments"
+                : "Manage organizational structure and zone assignments"}
+            </p>
+          </div>
         </div>
+        {(isAdmin || isPastor) && (
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => setBulkAssignDialogOpen(true)}
+              disabled={selectedShepherds.size === 0}
+              className="w-full sm:w-auto"
+              size="sm"
+            >
+              <UserCheck className="mr-2 h-4 w-4" />
+              Bulk Assign ({selectedShepherds.size})
+            </Button>
+            <Button 
+              onClick={() => setAssignDialogOpen(true)}
+              className="w-full sm:w-auto"
+              size="sm"
+            >
+              <UserCog className="mr-2 h-4 w-4" />
+              Assign Shepherd
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Stats Cards */}
-      {stats === undefined ? (
+      {/* Stats Cards (admin/pastor only) */}
+      {(isAdmin || isPastor) && (
+      stats === undefined ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <StatsCardSkeleton count={4} showDescription={false} />
         </div>
@@ -756,17 +801,28 @@ export default function AssignmentsPage() {
             </CardContent>
           </Card>
         </div>
-      ) : null}
+      ) : null
+      )}
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="hierarchy" className="space-y-4">
+      {/* Main Content Tabs - shepherds only see Tasks; pastors cannot assign shepherds (admin only) */}
+      <Tabs defaultValue={isShepherd ? "tasks" : isAdmin ? "hierarchy" : "shepherds"} className="space-y-4">
         <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
           <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0">
-            <TabsTrigger value="hierarchy" className="flex-shrink-0 text-xs sm:text-sm">
-              <Network className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Organization Chart</span>
-              <span className="xs:hidden">Chart</span>
-            </TabsTrigger>
+            {isShepherd ? (
+              <TabsTrigger value="tasks" className="flex-shrink-0 text-xs sm:text-sm">
+                <Heart className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Task Assignments</span>
+                <span className="sm:hidden">Tasks</span>
+              </TabsTrigger>
+            ) : (
+              <>
+            {isAdmin && (
+              <TabsTrigger value="hierarchy" className="flex-shrink-0 text-xs sm:text-sm">
+                <Network className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Organization Chart</span>
+                <span className="xs:hidden">Chart</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="shepherds" className="flex-shrink-0 text-xs sm:text-sm">
               <Users className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden xs:inline">Manage Shepherds</span>
@@ -790,10 +846,13 @@ export default function AssignmentsPage() {
               <span className="hidden sm:inline">Task Assignments</span>
               <span className="sm:hidden">Tasks</span>
             </TabsTrigger>
+              </>
+            )}
           </TabsList>
         </div>
 
-        {/* Organization Chart Tab */}
+        {/* Organization Chart Tab (admin only - pastors cannot assign shepherds to pastors) */}
+        {isAdmin && (
         <TabsContent value="hierarchy" className="space-y-4">
           <Card>
             <CardHeader>
@@ -913,6 +972,7 @@ export default function AssignmentsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         {/* Manage Shepherds Tab */}
         <TabsContent value="shepherds" className="space-y-4">
@@ -920,7 +980,9 @@ export default function AssignmentsPage() {
             <CardHeader>
               <CardTitle>Manage Shepherds</CardTitle>
               <CardDescription>
-                Assign shepherds to pastors and manage assignments
+                {isAdmin
+                  ? "Assign shepherds to pastors and manage assignments"
+                  : "View your assigned shepherds. Only admins can assign or unassign shepherds to pastors."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -938,6 +1000,7 @@ export default function AssignmentsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                  {isAdmin && (
                   <Select
                     value={selectedPastorFilter}
                     onValueChange={setSelectedPastorFilter}
@@ -954,6 +1017,7 @@ export default function AssignmentsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  )}
                   <Select
                     value={selectedZoneFilter}
                     onValueChange={setSelectedZoneFilter}
@@ -970,6 +1034,7 @@ export default function AssignmentsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {isAdmin && (
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="unassigned-only"
@@ -980,11 +1045,12 @@ export default function AssignmentsPage() {
                     />
                     <Label htmlFor="unassigned-only" className="text-sm">Unassigned only</Label>
                   </div>
+                  )}
                 </div>
               </div>
 
-              {/* Selection Actions */}
-              {selectedShepherds.size > 0 && (
+              {/* Selection Actions - admin only (pastors cannot assign shepherds to pastors) */}
+              {isAdmin && selectedShepherds.size > 0 && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-muted rounded-lg">
                   <span className="text-sm font-medium">
                     {selectedShepherds.size} selected
@@ -1021,13 +1087,15 @@ export default function AssignmentsPage() {
                         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg hover:bg-muted/50"
                       >
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <Checkbox
-                            checked={selectedShepherds.has(shepherd._id)}
-                            onCheckedChange={() =>
-                              toggleShepherdSelection(shepherd._id)
-                            }
-                            className="mt-1 flex-shrink-0"
-                          />
+                          {isAdmin && (
+                            <Checkbox
+                              checked={selectedShepherds.has(shepherd._id)}
+                              onCheckedChange={() =>
+                                toggleShepherdSelection(shepherd._id)
+                              }
+                              className="mt-1 flex-shrink-0"
+                            />
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm sm:text-base truncate">{shepherd.name}</div>
                             <div className="text-xs sm:text-sm text-muted-foreground truncate">
@@ -1050,7 +1118,7 @@ export default function AssignmentsPage() {
                           </div>
                         </div>
                         <div className="flex gap-2 justify-end sm:justify-start">
-                          {shepherd.overseerId && (
+                          {isAdmin && shepherd.overseerId && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -1060,17 +1128,19 @@ export default function AssignmentsPage() {
                               Unassign
                             </Button>
                           )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedShepherdForAssign(shepherd._id);
-                              setZoneAssignDialogOpen(true);
-                            }}
-                            className="flex-1 sm:flex-initial"
-                          >
-                            Zone
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedShepherdForAssign(shepherd._id);
+                                setZoneAssignDialogOpen(true);
+                              }}
+                              className="flex-1 sm:flex-initial"
+                            >
+                              Zone
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1093,14 +1163,18 @@ export default function AssignmentsPage() {
                 <div>
                   <CardTitle>Zone Management</CardTitle>
                   <CardDescription>
-                    Assign zones to shepherds and pastors
+                    {isAdmin
+                      ? "Assign zones to shepherds and pastors"
+                      : "View zone statistics"}
                   </CardDescription>
                 </div>
-                <Button
-                  onClick={() => setSupervisedZonesDialogOpen(true)}
-                >
-                  Assign Supervised Zones
-                </Button>
+                {isAdmin && (
+                  <Button
+                    onClick={() => setSupervisedZonesDialogOpen(true)}
+                  >
+                    Assign Supervised Zones
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -1521,7 +1595,9 @@ export default function AssignmentsPage() {
                     const member = members?.find((m) => m._id === assignment.memberId);
                     const shepherd = shepherdsQuery?.find((s) => s._id === assignment.shepherdId);
                     const memberName = member ? `${member.firstName} ${member.lastName}` : "Unknown";
-                    const shepherdName = shepherd?.name || "Unknown";
+                    const shepherdName = isShepherd && assignment.shepherdId === currentUser?._id
+                      ? currentUser.name
+                      : (shepherd?.name || "Unknown");
                     
                     const getStatusBadgeVariant = (status: string) => {
                       switch (status) {

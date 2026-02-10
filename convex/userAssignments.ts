@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { verifyToken } from "./auth";
 
-// Get assignment statistics (admin only)
+// Get assignment statistics (admin and pastor)
 export const getStats = query({
   args: {
     token: v.string(),
@@ -15,14 +15,27 @@ export const getStats = query({
     }
 
     const user = await ctx.db.get(userId);
-    if (!user || user.role !== "admin") {
-      throw new Error("Unauthorized - admin only");
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Allow admins and pastors
+    if (user.role !== "admin" && user.role !== "pastor") {
+      throw new Error("Unauthorized - admin or pastor access required");
     }
 
     const allUsers = await ctx.db.query("users").collect();
     
-    const pastors = allUsers.filter((u) => u.role === "pastor" && u.isActive);
-    const shepherds = allUsers.filter((u) => u.role === "shepherd" && u.isActive);
+    let pastors = allUsers.filter((u) => u.role === "pastor" && u.isActive);
+    let shepherds = allUsers.filter((u) => u.role === "shepherd" && u.isActive);
+    
+    // Filter by role permissions
+    if (user.role === "pastor") {
+      // Pastors only see their own shepherds
+      shepherds = shepherds.filter((s) => s.overseerId === userId);
+      pastors = pastors.filter((p) => p._id === userId);
+    }
+    
     const unassignedShepherds = shepherds.filter((s) => !s.overseerId);
     
     // Count shepherds per pastor
@@ -129,7 +142,7 @@ export const getHierarchy = query({
   },
 });
 
-// Get all pastors (for assignment dropdowns)
+// Get all pastors (for assignment dropdowns) - admins and pastors can access
 export const getPastors = query({
   args: {
     token: v.string(),
@@ -141,8 +154,13 @@ export const getPastors = query({
     }
 
     const user = await ctx.db.get(userId);
-    if (!user || user.role !== "admin") {
-      throw new Error("Unauthorized - admin only");
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Allow admins and pastors to access
+    if (user.role !== "admin" && user.role !== "pastor") {
+      throw new Error("Unauthorized - admin or pastor access required");
     }
 
     const pastors = await ctx.db
@@ -160,7 +178,7 @@ export const getPastors = query({
   },
 });
 
-// Get all shepherds (for assignment)
+// Get all shepherds (for assignment) - admins and pastors can access
 export const getShepherds = query({
   args: {
     token: v.string(),
@@ -175,8 +193,8 @@ export const getShepherds = query({
     }
 
     const user = await ctx.db.get(userId);
-    if (!user || user.role !== "admin") {
-      throw new Error("Unauthorized - admin only");
+    if (!user || (user.role !== "admin" && user.role !== "pastor")) {
+      throw new Error("Unauthorized - admin or pastor access required");
     }
 
     let shepherds = await ctx.db
@@ -184,6 +202,11 @@ export const getShepherds = query({
       .withIndex("by_role", (q) => q.eq("role", "shepherd"))
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
+
+    // Pastors only see their own shepherds
+    if (user.role === "pastor") {
+      shepherds = shepherds.filter((s) => s.overseerId === userId);
+    }
 
     // Apply filters
     if (args.pastorId) {
@@ -507,7 +530,7 @@ export const assignSupervisedZonesToPastor = mutation({
   },
 });
 
-// Get all unique zones
+// Get all unique zones (admin and pastor)
 export const getAllZones = query({
   args: {
     token: v.string(),
@@ -519,11 +542,25 @@ export const getAllZones = query({
     }
 
     const user = await ctx.db.get(userId);
-    if (!user || user.role !== "admin") {
-      throw new Error("Unauthorized - admin only");
+    if (!user) {
+      throw new Error("User not found");
     }
 
-    const allUsers = await ctx.db.query("users").collect();
+    // Allow admins and pastors
+    if (user.role !== "admin" && user.role !== "pastor") {
+      throw new Error("Unauthorized - admin or pastor access required");
+    }
+
+    let allUsers = await ctx.db.query("users").collect();
+    
+    // Filter by role permissions
+    if (user.role === "pastor") {
+      // Pastors only see zones from their shepherds and their own supervised zones
+      const pastorShepherds = allUsers.filter((u) => u.role === "shepherd" && u.overseerId === userId);
+      const pastor = allUsers.find((u) => u._id === userId);
+      allUsers = [...pastorShepherds, ...(pastor ? [pastor] : [])];
+    }
+    
     const zones = new Set<string>();
 
     allUsers.forEach((u) => {

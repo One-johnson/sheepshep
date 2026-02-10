@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { toast } from "sonner";
 import {
@@ -14,17 +14,29 @@ import {
   FileText,
   LogOut,
   ArrowLeft,
+  ClipboardList,
+  CalendarCheck,
+  Heart,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
 import { useTheme } from "next-themes";
-import { Separator } from "@/components/ui/separator";
+
+interface MenuItem {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+  roles?: ("admin" | "pastor" | "shepherd")[];
+  hideForRoles?: ("admin" | "pastor" | "shepherd")[];
+}
 
 export default function MorePage() {
   const router = useRouter();
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const logout = useMutation(api.auth.logout);
+  const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
   const { theme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -45,28 +57,53 @@ export default function MorePage() {
     }
   };
 
-  const menuItems = [
+  const allMenuItems: MenuItem[] = [
+    { title: "Profile", icon: User, onClick: () => router.push("/dashboard/profile") },
+    { title: "Members", icon: UserCheck, onClick: () => router.push("/dashboard/members") },
+    {
+      title: "Assignments",
+      icon: ClipboardList,
+      onClick: () => router.push("/dashboard/assignments"),
+      hideForRoles: ["admin", "pastor"], // Already in bottom nav for these roles
+    },
+    {
+      title: "Attendance",
+      icon: CalendarCheck,
+      onClick: () => router.push("/dashboard/attendance"),
+    },
+    {
+      title: "Reports",
+      icon: FileText,
+      onClick: () => router.push("/dashboard/reports"),
+    },
+    {
+      title: "Prayer Requests",
+      icon: Heart,
+      onClick: () => router.push("/dashboard/prayer-requests"),
+    },
+    { title: "Notifications", icon: Bell, onClick: () => router.push("/dashboard/notifications") },
     {
       title: "Settings",
       icon: Settings,
       onClick: () => router.push("/dashboard/settings"),
-    },
-    {
-      title: "Profile",
-      icon: User,
-      onClick: () => router.push("/dashboard/profile"),
-    },
-    {
-      title: "Members",
-      icon: UserCheck,
-      onClick: () => router.push("/dashboard/members"),
+      roles: ["admin"],
     },
     {
       title: "Audit Log",
       icon: FileText,
       onClick: () => router.push("/dashboard/audit-log"),
+      roles: ["admin"],
     },
   ];
+
+  const menuItems = React.useMemo(() => {
+    if (!currentUser) return allMenuItems.filter((i) => i.title === "Profile" || i.title === "Members");
+    return allMenuItems.filter((item) => {
+      if (item.hideForRoles?.includes(currentUser.role)) return false;
+      if (!item.roles) return true;
+      return item.roles.includes(currentUser.role);
+    });
+  }, [currentUser]);
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-6">

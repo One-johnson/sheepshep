@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -34,7 +35,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { FileText, Filter, X, Trash2 } from "lucide-react";
+import { FileText, Filter, X, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 // Format date for display
@@ -89,6 +90,7 @@ type AuditLogEntry = {
 };
 
 export default function AuditLogPage() {
+  const router = useRouter();
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
   // Server-side filter state - use "all" instead of empty string for Select components
@@ -428,14 +430,24 @@ export default function AuditLogPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <FileText className="h-8 w-8" />
-          Audit Log
-        </h1>
-        <p className="text-muted-foreground">
-          View system activity and user actions (Admin only)
-        </p>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.back()}
+          className="flex-shrink-0 md:hidden"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <FileText className="h-8 w-8" />
+            Audit Log
+          </h1>
+          <p className="text-muted-foreground">
+            View system activity and user actions (Admin only)
+          </p>
+        </div>
       </div>
 
       {/* Filters Card */}

@@ -15,7 +15,7 @@ export default function DashboardLayout({
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 md:p-6 md:pt-0 pb-20 md:pb-6">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 md:p-6 md:pt-0 pb-20 md:pb-6 min-w-0 overflow-x-hidden">
           {children}
         </div>
         <MobileNav />

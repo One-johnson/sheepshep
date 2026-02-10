@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +53,8 @@ import {
   Search,
   X,
   CheckSquare,
+  ArrowLeft,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -199,7 +202,13 @@ export default function AttendancePage() {
     api.members.list,
     token ? { token, isActive: true } : "skip"
   );
-  
+
+  // Get groups for attendance (groups with meeting day and members, where user is leader)
+  const groupsForAttendance = useQuery(
+    api.groups.listForAttendance,
+    token ? { token } : "skip"
+  );
+
   // Get shepherds based on role
   const shepherds = useQuery(
     api.attendance.getShepherds,
@@ -219,8 +228,15 @@ export default function AttendancePage() {
   const deleteAttendance = useMutation(api.attendance.remove);
   const bulkDeleteAttendance = useMutation(api.attendance.bulkDelete);
 
-  // State
-  const [selectedTab, setSelectedTab] = React.useState<"members" | "shepherds" | "records">("members");
+  // State - pastors only see shepherds & records (no member attendance)
+  const [selectedTab, setSelectedTab] = React.useState<"members" | "groups" | "shepherds" | "records">("members");
+
+  // When user is pastor, default to Shepherds tab (they cannot mark member attendance)
+  React.useEffect(() => {
+    if (currentUser?.role === "pastor" && selectedTab === "members") {
+      setSelectedTab("shepherds");
+    }
+  }, [currentUser?.role]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [dateFilter, setDateFilter] = React.useState<string>(
     format(new Date(), "yyyy-MM-dd")
@@ -245,11 +261,32 @@ export default function AttendancePage() {
   const [selectedMemberForAttendance, setSelectedMemberForAttendance] = React.useState<Id<"members"> | "">("");
   const [selectedShepherdForAttendance, setSelectedShepherdForAttendance] = React.useState<Id<"users"> | "">("");
   
-  // New state for list-based marking dialog
+  // New state for list-based marking dialog (members)
   const [selectedShepherdForMarking, setSelectedShepherdForMarking] = React.useState<Id<"users"> | "">("");
   const [memberAttendanceRecords, setMemberAttendanceRecords] = React.useState<
     Array<{
       memberId: Id<"members">;
+      status: "present" | "absent" | "excused" | "late";
+      reason: string;
+    }>
+  >([]);
+
+  // State for group attendance dialog
+  const [markGroupAttendanceDialogOpen, setMarkGroupAttendanceDialogOpen] = React.useState(false);
+  const [selectedGroupForAttendance, setSelectedGroupForAttendance] = React.useState<Id<"groups"> | "">("");
+  const [groupAttendanceRecords, setGroupAttendanceRecords] = React.useState<
+    Array<{
+      memberId: Id<"members">;
+      status: "present" | "absent" | "excused" | "late";
+      reason: string;
+    }>
+  >([]);
+
+  // State for shepherd attendance dialog
+  const [markShepherdAttendanceDialogOpen, setMarkShepherdAttendanceDialogOpen] = React.useState(false);
+  const [shepherdAttendanceRecords, setShepherdAttendanceRecords] = React.useState<
+    Array<{
+      userId: Id<"users">;
       status: "present" | "absent" | "excused" | "late";
       reason: string;
     }>
@@ -312,6 +349,66 @@ export default function AttendancePage() {
         }
       : "skip"
   );
+
+  // Get group members when a group is selected
+  const groupMembers = useQuery(
+    api.groups.getMembers,
+    token && selectedGroupForAttendance ? { token, groupId: selectedGroupForAttendance } : "skip"
+  );
+
+  // Flatten group members for attendance
+  const groupMembersList = React.useMemo(() => {
+    if (!groupMembers) return [];
+    return groupMembers
+      .map((gm) => gm.member)
+      .filter((m): m is NonNullable<typeof m> => m != null);
+  }, [groupMembers]);
+
+  // Query to check existing attendance for group members on selected date (with groupId)
+  const existingAttendanceForGroupMembers = useQuery(
+    api.attendance.checkExistingAttendance,
+    token &&
+      selectedDateTimestamp &&
+      selectedGroupForAttendance &&
+      groupMembersList.length > 0
+      ? {
+          token,
+          memberIds: groupMembersList.map((m) => m._id),
+          date: selectedDateTimestamp,
+          groupId: selectedGroupForAttendance,
+        }
+      : "skip"
+  );
+
+  // Filter group members who don't have attendance yet
+  const groupMembersWithoutAttendance = React.useMemo(() => {
+    if (!existingAttendanceForGroupMembers || !groupMembersList) return groupMembersList || [];
+    return groupMembersList.filter(
+      (m) => !existingAttendanceForGroupMembers[m._id]
+    );
+  }, [groupMembersList, existingAttendanceForGroupMembers]);
+
+  // Query to check existing shepherd attendance on selected date
+  const existingAttendanceForShepherds = useQuery(
+    api.attendance.checkExistingShepherdAttendance,
+    token && selectedDateTimestamp && canManageAll && shepherds && shepherds.length > 0
+      ? {
+          token,
+          userIds: shepherds.map((s) => s._id),
+          date: selectedDateTimestamp,
+        }
+      : "skip"
+  );
+
+  // Filter shepherds who already have attendance for the selected date
+  const shepherdsWithoutAttendance = React.useMemo(() => {
+    if (!shepherds) return [];
+    if (!existingAttendanceForShepherds) return shepherds;
+
+    return shepherds.filter(
+      (shepherd) => !existingAttendanceForShepherds[shepherd._id]
+    );
+  }, [shepherds, existingAttendanceForShepherds]);
 
   // Filter out members who already have attendance for the selected date
   const membersWithoutAttendance = React.useMemo(() => {
@@ -495,6 +592,208 @@ export default function AttendancePage() {
     }
   }, [selectedShepherdForMarking, membersWithoutAttendance]);
 
+  // Initialize shepherd records when dialog opens
+  React.useEffect(() => {
+    if (markShepherdAttendanceDialogOpen && shepherdsWithoutAttendance.length > 0) {
+      setShepherdAttendanceRecords(
+        shepherdsWithoutAttendance.map((s) => ({
+          userId: s._id,
+          status: "present" as const,
+          reason: "",
+        }))
+      );
+    } else if (!markShepherdAttendanceDialogOpen) {
+      setShepherdAttendanceRecords([]);
+    }
+  }, [markShepherdAttendanceDialogOpen, shepherdsWithoutAttendance]);
+
+  // Update shepherd attendance record
+  const updateShepherdAttendanceRecord = (
+    userId: Id<"users">,
+    field: "status" | "reason",
+    value: string
+  ) => {
+    setShepherdAttendanceRecords((prev) => {
+      const existing = prev.find((r) => r.userId === userId);
+      if (existing) {
+        return prev.map((r) =>
+          r.userId === userId
+            ? { ...r, [field]: value }
+            : r
+        );
+      } else {
+        return [
+          ...prev,
+          {
+            userId,
+            status: (field === "status" ? value : "present") as "present" | "absent" | "excused" | "late",
+            reason: field === "reason" ? value : "",
+          },
+        ];
+      }
+    });
+  };
+
+  // Update group attendance record
+  const updateGroupAttendanceRecord = (
+    memberId: Id<"members">,
+    field: "status" | "reason",
+    value: string
+  ) => {
+    setGroupAttendanceRecords((prev) => {
+      const existing = prev.find((r) => r.memberId === memberId);
+      if (existing) {
+        return prev.map((r) =>
+          r.memberId === memberId ? { ...r, [field]: value } : r
+        );
+      }
+      return [
+        ...prev,
+        {
+          memberId,
+          status: (field === "status" ? value : "present") as "present" | "absent" | "excused" | "late",
+          reason: field === "reason" ? value : "",
+        },
+      ];
+    });
+  };
+
+  // Initialize group records when group is selected
+  React.useEffect(() => {
+    if (selectedGroupForAttendance && groupMembersWithoutAttendance.length > 0) {
+      setGroupAttendanceRecords(
+        groupMembersWithoutAttendance.map((m) => ({
+          memberId: m._id,
+          status: "present" as const,
+          reason: "",
+        }))
+      );
+    } else {
+      setGroupAttendanceRecords([]);
+    }
+  }, [selectedGroupForAttendance, groupMembersWithoutAttendance]);
+
+  // Handle mark group attendance
+  const handleMarkGroupAttendance = async () => {
+    if (!token || !selectedGroupForAttendance) return;
+
+    const invalidRecords = groupAttendanceRecords.filter(
+      (r) => r.status !== "present" && !r.reason.trim()
+    );
+    if (invalidRecords.length > 0) {
+      toast.error("Please provide a reason for all non-present attendance statuses");
+      return;
+    }
+    if (groupAttendanceRecords.length === 0) {
+      toast.error("Please mark attendance for at least one member");
+      return;
+    }
+
+    try {
+      const selectedDate = dateFilter ? new Date(dateFilter).getTime() : Date.now();
+      const records = groupAttendanceRecords.map((r) => ({
+        memberId: r.memberId,
+        date: selectedDate,
+        attendanceStatus: r.status,
+        notes: r.reason.trim() || undefined,
+      }));
+
+      const result = await bulkCreateAttendance({
+        token,
+        groupId: selectedGroupForAttendance,
+        attendanceRecords: records,
+        autoApprove: canManageAll,
+      });
+
+      if (result.errors && result.errors.length > 0) {
+        const firstError = result.errors[0];
+        toast.error(firstError.error || "Some records failed");
+        if (result.created > 0) {
+          toast.success(`Marked ${result.created} of ${records.length} successfully`);
+        }
+      } else {
+        toast.success(`Successfully marked attendance for ${records.length} member(s)`);
+      }
+
+      setMarkGroupAttendanceDialogOpen(false);
+      setSelectedGroupForAttendance("");
+      setGroupAttendanceRecords([]);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to mark attendance");
+    }
+  };
+
+  // Handle mark shepherd attendance
+  const handleMarkShepherdAttendance = async () => {
+    if (!token) return;
+
+    // Validate that all non-present statuses have reasons
+    const invalidRecords = shepherdAttendanceRecords.filter(
+      (record) => record.status !== "present" && !record.reason.trim()
+    );
+
+    if (invalidRecords.length > 0) {
+      toast.error("Please provide a reason for all non-present attendance statuses");
+      return;
+    }
+
+    if (shepherdAttendanceRecords.length === 0) {
+      toast.error("No shepherds to mark attendance for");
+      return;
+    }
+
+    try {
+      const selectedDate = dateFilter ? new Date(dateFilter).getTime() : Date.now();
+
+      const records = shepherdAttendanceRecords.map((record) => ({
+        userId: record.userId,
+        date: selectedDate,
+        attendanceStatus: record.status,
+        notes: record.reason.trim() || undefined,
+      }));
+
+      const result = await bulkCreateAttendance({
+        token,
+        attendanceRecords: records,
+        autoApprove: true,
+      });
+
+      if (result.errors && result.errors.length > 0) {
+        const duplicateErrors = result.errors.filter((e: any) =>
+          e.error?.includes("already marked")
+        );
+        const otherErrors = result.errors.filter(
+          (e: any) => !e.error?.includes("already marked")
+        );
+
+        if (duplicateErrors.length > 0) {
+          toast.error(
+            `Attendance already marked for ${duplicateErrors.length} shepherd(s) on this date.`
+          );
+        }
+        if (otherErrors.length > 0) {
+          toast.error(
+            `Failed to mark attendance for ${otherErrors.length} shepherd(s): ${otherErrors[0].error}`
+          );
+        }
+        if (result.created > 0) {
+          toast.success(`Successfully marked attendance for ${result.created} shepherd(s)`);
+        }
+      } else {
+        toast.success(`Successfully marked attendance for ${records.length} shepherd(s)`);
+      }
+
+      setMarkShepherdAttendanceDialogOpen(false);
+      setShepherdAttendanceRecords([]);
+    } catch (error: any) {
+      if (error.message?.includes("already marked")) {
+        toast.error("Some shepherds already have attendance marked for this date.");
+      } else {
+        toast.error(error.message || "Failed to mark shepherd attendance");
+      }
+    }
+  };
+
   // Handle bulk mark attendance
   const handleBulkMarkAttendance = async () => {
     if (!token) return;
@@ -645,18 +944,32 @@ export default function AttendancePage() {
     return <div className="p-6">Loading...</div>;
   }
 
+  const router = useRouter();
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-          <UserCheck className="h-6 w-6 sm:h-8 sm:w-8" />
-          Attendance Management
-        </h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-0">
-          {canManageAll
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.back()}
+          className="flex-shrink-0 md:hidden"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <UserCheck className="h-6 w-6 sm:h-8 sm:w-8" />
+            Attendance Management
+          </h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-0">
+          {isAdmin
             ? "Manage attendance for members and shepherds"
-            : "Manage attendance for your assigned members"}
-        </p>
+            : isPastor
+              ? "Mark attendance for shepherds assigned to you only"
+              : "Manage attendance for your assigned members"}
+          </p>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -715,14 +1028,27 @@ export default function AttendancePage() {
       <Tabs value={selectedTab} onValueChange={(v) => setSelectedTab(v as any)} className="w-full">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 mb-4">
           <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
-            <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0 grid grid-cols-3 sm:inline-flex">
-              <TabsTrigger value="members" className="text-xs sm:text-sm flex-shrink-0">Members</TabsTrigger>
+            <TabsList className={`inline-flex w-full sm:w-auto min-w-full sm:min-w-0 ${isPastor ? "grid grid-cols-2" : isShepherd ? "grid grid-cols-3" : "grid grid-cols-4"} sm:inline-flex`}>
+              {!isPastor && <TabsTrigger value="members" className="text-xs sm:text-sm flex-shrink-0">Members</TabsTrigger>}
+              {isShepherd && <TabsTrigger value="groups" className="text-xs sm:text-sm flex-shrink-0">Groups</TabsTrigger>}
               {canManageAll && <TabsTrigger value="shepherds" className="text-xs sm:text-sm flex-shrink-0">Shepherds</TabsTrigger>}
               <TabsTrigger value="records" className="text-xs sm:text-sm flex-shrink-0">Records</TabsTrigger>
             </TabsList>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {selectedTab !== "records" && (
+            {selectedTab === "groups" && isShepherd && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setMarkGroupAttendanceDialogOpen(true);
+                }}
+                disabled={!groupsForAttendance || groupsForAttendance.length === 0}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Mark Group Attendance
+              </Button>
+            )}
+            {selectedTab === "members" && (
               <>
                 <Dialog open={markAttendanceDialogOpen} onOpenChange={(open) => {
                   setMarkAttendanceDialogOpen(open);
@@ -1025,7 +1351,8 @@ export default function AttendancePage() {
           </div>
         </div>
 
-        {/* Members Tab */}
+        {/* Members Tab - hidden for pastors (they can only mark shepherd attendance) */}
+        {!isPastor && (
         <TabsContent value="members" className="space-y-4">
           <Card>
             <CardHeader>
@@ -1033,7 +1360,7 @@ export default function AttendancePage() {
                 <div>
                   <CardTitle className="text-lg sm:text-xl">Members</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
-                    {canManageAll
+                    {isAdmin
                       ? "Select members to mark attendance"
                       : "Select your members to mark attendance"}
                   </CardDescription>
@@ -1132,6 +1459,67 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
+        {/* Groups Tab - shepherds only */}
+        {isShepherd && (
+        <TabsContent value="groups" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle className="text-lg sm:text-xl">Groups</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Take attendance for group members on their meeting day. Select a group and mark attendance for members.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!groupsForAttendance || groupsForAttendance.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-medium">No groups available</p>
+                  <p className="text-sm mt-1">
+                    Create groups with a meeting day and add members at{" "}
+                    <a href="/dashboard/groups" className="text-primary underline">Groups</a>.
+                    Leaders can then take attendance for members on the meeting day.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {groupsForAttendance.map((group) => {
+                    const meetingDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                    const meetingDayLabel = group.meetingDay !== undefined && group.meetingDay !== null
+                      ? meetingDays[group.meetingDay]
+                      : "Not set";
+                    return (
+                      <Card key={group._id} className="cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => {
+                          setSelectedGroupForAttendance(group._id);
+                          setMarkGroupAttendanceDialogOpen(true);
+                        }}
+                      >
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">{group.name}</CardTitle>
+                          <CardDescription className="flex items-center gap-2">
+                            <span>{meetingDayLabel}</span>
+                            <span>•</span>
+                            <span>{group.memberCount || 0} members</span>
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <Button size="sm" variant="outline" className="w-full">
+                            Mark Attendance
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        )}
 
         {/* Shepherds Tab */}
         {canManageAll && (
@@ -1144,6 +1532,13 @@ export default function AttendancePage() {
                     <CardDescription className="text-xs sm:text-sm">Select shepherds to mark attendance</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setMarkShepherdAttendanceDialogOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Mark Shepherd Attendance
+                    </Button>
                     <div className="relative flex-1 sm:flex-initial">
                       <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -1438,6 +1833,329 @@ export default function AttendancePage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Mark Group Attendance Dialog */}
+      <Dialog
+        open={markGroupAttendanceDialogOpen}
+        onOpenChange={(open) => {
+          setMarkGroupAttendanceDialogOpen(open);
+          if (!open) {
+            setSelectedGroupForAttendance("");
+            setGroupAttendanceRecords([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Mark Group Attendance</DialogTitle>
+            <DialogDescription>
+              Select a group and take attendance for members on the group&apos;s meeting day
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Group</Label>
+              <Select
+                value={selectedGroupForAttendance || ""}
+                onValueChange={(v) => setSelectedGroupForAttendance(v as Id<"groups"> | "")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groupsForAttendance?.map((g) => {
+                    const meetingDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                    const dayLabel = g.meetingDay !== undefined && g.meetingDay !== null ? meetingDays[g.meetingDay] : "";
+                    return (
+                      <SelectItem key={g._id} value={g._id}>
+                        {g.name} ({dayLabel})
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              />
+              {selectedGroupForAttendance && groupsForAttendance && (
+                <p className="text-xs text-muted-foreground">
+                  This group meets on {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][groupsForAttendance.find((g) => g._id === selectedGroupForAttendance)?.meetingDay ?? 0] || "—"}. Select that day to take attendance.
+                </p>
+              )}
+            </div>
+            {selectedGroupForAttendance && (
+              <>
+                {existingAttendanceForGroupMembers && Object.keys(existingAttendanceForGroupMembers).length > 0 && (
+                  <div className="border rounded-lg p-4 bg-muted/50">
+                    <Label className="text-base font-semibold text-muted-foreground">
+                      Already Marked ({Object.keys(existingAttendanceForGroupMembers).length})
+                    </Label>
+                    <div className="space-y-2 max-h-32 overflow-y-auto mt-2">
+                      {groupMembersList
+                        .filter((m) => existingAttendanceForGroupMembers[m._id])
+                        .map((member) => {
+                          const rec = existingAttendanceForGroupMembers[member._id];
+                          return (
+                            <div key={member._id} className="flex items-center justify-between p-2 bg-background rounded text-sm">
+                              <span>{member.firstName} {member.lastName}</span>
+                              <Badge {...getStatusBadgeProps(rec.attendanceStatus)}>{rec.attendanceStatus}</Badge>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+                {groupMembersWithoutAttendance.length > 0 && (
+                  <div className="border rounded-lg p-4 max-h-[60vh] overflow-y-auto">
+                    <Label className="text-base font-semibold">Mark Attendance ({groupMembersWithoutAttendance.length})</Label>
+                    <div className="space-y-3 mt-3">
+                      {groupMembersWithoutAttendance.map((member) => {
+                        const record = groupAttendanceRecords.find((r) => r.memberId === member._id);
+                        const status = record?.status || "present";
+                        const reason = record?.reason || "";
+                        const needsReason = status !== "present";
+                        return (
+                          <div key={member._id} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-3 border rounded-lg bg-muted/30">
+                            <div className="md:col-span-3 flex items-center gap-3">
+                              <MemberPhotoCell memberId={member._id} photoId={member.profilePhotoId} firstName={member.firstName} lastName={member.lastName} token={token} />
+                              <div>
+                                <div className="font-medium">{member.firstName} {member.lastName}</div>
+                                <div className="text-sm text-muted-foreground">{member.customId || "N/A"}</div>
+                              </div>
+                            </div>
+                            <div className="md:col-span-3">
+                              <Label className="text-xs">Status</Label>
+                              <Select value={status} onValueChange={(v) => updateGroupAttendanceRecord(member._id, "status", v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="present">Present</SelectItem>
+                                  <SelectItem value="absent">Absent</SelectItem>
+                                  <SelectItem value="excused">Excused</SelectItem>
+                                  <SelectItem value="late">Late</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="md:col-span-6">
+                              <Label className="text-xs">Reason {needsReason && <span className="text-destructive">*</span>}</Label>
+                              <Textarea value={reason} onChange={(e) => updateGroupAttendanceRecord(member._id, "reason", e.target.value)} placeholder={needsReason ? "Required" : "Optional"} rows={2} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {groupMembersWithoutAttendance.length === 0 && existingAttendanceForGroupMembers && Object.keys(existingAttendanceForGroupMembers).length > 0 && (
+                  <div className="text-center py-8 text-muted-foreground text-sm border rounded-lg bg-muted/50">
+                    All members already have attendance marked for this date
+                  </div>
+                )}
+              </>
+            )}
+            {selectedGroupForAttendance && groupMembersList.length === 0 && !groupMembers && (
+              <div className="text-center py-4 text-muted-foreground text-sm">Loading members...</div>
+            )}
+            {selectedGroupForAttendance && groupMembers && groupMembersList.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground text-sm">No members in this group. Add members in the Groups page.</div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setMarkGroupAttendanceDialogOpen(false); setSelectedGroupForAttendance(""); setGroupAttendanceRecords([]); }}>
+                Cancel
+              </Button>
+              <Button onClick={handleMarkGroupAttendance} disabled={!selectedGroupForAttendance || groupAttendanceRecords.length === 0 || groupMembersWithoutAttendance.length === 0}>
+                Mark Attendance ({groupAttendanceRecords.length})
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark Shepherd Attendance Dialog */}
+      {canManageAll && (
+        <Dialog
+          open={markShepherdAttendanceDialogOpen}
+          onOpenChange={(open) => {
+            setMarkShepherdAttendanceDialogOpen(open);
+            if (!open) {
+              setShepherdAttendanceRecords([]);
+            }
+          }}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Mark Attendance for Shepherds</DialogTitle>
+              <DialogDescription>
+                Mark attendance for all shepherds at once
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                />
+              </div>
+
+              {/* Show shepherds who already have attendance */}
+              {existingAttendanceForShepherds && Object.keys(existingAttendanceForShepherds).length > 0 && (
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-base font-semibold text-muted-foreground">
+                      Already Marked ({Object.keys(existingAttendanceForShepherds).length})
+                    </Label>
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {shepherds
+                      ?.filter((s) => existingAttendanceForShepherds[s._id])
+                      .map((shepherd) => {
+                        const existingRecord = existingAttendanceForShepherds[shepherd._id];
+                        return (
+                          <div
+                            key={shepherd._id}
+                            className="flex items-center justify-between p-2 bg-background rounded text-sm gap-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <UserPhotoCell
+                                userId={shepherd._id}
+                                photoId={shepherd.profilePhotoId}
+                                name={shepherd.name}
+                                token={token}
+                              />
+                              <span>{shepherd.name}</span>
+                            </div>
+                            <Badge {...getStatusBadgeProps(existingRecord.attendanceStatus)}>
+                              {existingRecord.attendanceStatus}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* Show shepherds without attendance for marking */}
+              {shepherdsWithoutAttendance.length > 0 && (
+                <div className="border rounded-lg p-4 max-h-[60vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-base font-semibold">
+                      Mark Attendance ({shepherdsWithoutAttendance.length})
+                    </Label>
+                  </div>
+                  <div className="space-y-3">
+                    {shepherdsWithoutAttendance.map((shepherd) => {
+                      const record = shepherdAttendanceRecords.find((r) => r.userId === shepherd._id);
+                      const status = record?.status || "present";
+                      const reason = record?.reason || "";
+                      const needsReason = status !== "present";
+
+                      return (
+                        <div
+                          key={shepherd._id}
+                          className="grid grid-cols-1 md:grid-cols-12 gap-3 p-3 border rounded-lg bg-muted/30"
+                        >
+                          <div className="md:col-span-3 flex items-center gap-3">
+                            <UserPhotoCell
+                              userId={shepherd._id}
+                              photoId={shepherd.profilePhotoId}
+                              name={shepherd.name}
+                              token={token}
+                            />
+                            <div className="flex flex-col justify-center">
+                              <div className="font-medium">{shepherd.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {shepherd.email}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="md:col-span-3">
+                            <Label className="text-xs">Status</Label>
+                            <Select
+                              value={status}
+                              onValueChange={(value) =>
+                                updateShepherdAttendanceRecord(
+                                  shepherd._id,
+                                  "status",
+                                  value
+                                )
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="present">Present</SelectItem>
+                                <SelectItem value="absent">Absent</SelectItem>
+                                <SelectItem value="excused">Excused</SelectItem>
+                                <SelectItem value="late">Late</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="md:col-span-6">
+                            <Label className="text-xs">
+                              Reason {needsReason && <span className="text-destructive">*</span>}
+                            </Label>
+                            <Textarea
+                              value={reason}
+                              onChange={(e) =>
+                                updateShepherdAttendanceRecord(
+                                  shepherd._id,
+                                  "reason",
+                                  e.target.value
+                                )
+                              }
+                              placeholder={needsReason ? "Required for this status" : "Optional"}
+                              className={needsReason && !reason.trim() ? "border-destructive" : ""}
+                              rows={2}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Show message if all shepherds already have attendance */}
+              {shepherdsWithoutAttendance.length === 0 && existingAttendanceForShepherds && Object.keys(existingAttendanceForShepherds).length > 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm border rounded-lg bg-muted/50">
+                  All shepherds already have attendance marked for this date
+                </div>
+              )}
+
+              {!shepherds || shepherds.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No shepherds found
+                </div>
+              ) : null}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setMarkShepherdAttendanceDialogOpen(false);
+                    setShepherdAttendanceRecords([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleMarkShepherdAttendance}
+                  disabled={shepherdAttendanceRecords.length === 0 || shepherdsWithoutAttendance.length === 0}
+                >
+                  Mark Attendance ({shepherdAttendanceRecords.length})
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Approve Dialog */}
       <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>

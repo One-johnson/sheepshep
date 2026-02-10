@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -50,6 +51,7 @@ import {
   Filter,
   X,
   Settings,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -211,6 +213,7 @@ function getNotificationColor(type: string): string {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -498,9 +501,18 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="flex-shrink-0 md:hidden"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <motion.div
               animate={
                 stats.unread > 0
@@ -542,8 +554,9 @@ export default function NotificationsPage() {
           <p className="text-muted-foreground">
             View and manage your notifications
           </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {stats.unread > 0 && (
             <Button
               variant="outline"

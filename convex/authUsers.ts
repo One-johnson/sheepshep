@@ -2,7 +2,9 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
 import { Id } from "./_generated/dataModel";
+import { Doc } from "./_generated/dataModel";
 import * as bcrypt from "bcryptjs";
+import { notifyAdmins } from "./notificationHelpers";
 
 // List all users (admin only)
 export const list = query({
@@ -42,6 +44,84 @@ export const list = query({
     return users.map((u) => {
       const { passwordHash: _, ...userWithoutPassword } = u;
       return userWithoutPassword;
+    });
+  },
+});
+
+// List users for display (e.g. prayer request requesters/recipients). Role-based: admins see all; pastors see self, their shepherds, admins, pastors; shepherds see self, their pastor, admins.
+export const listForDisplay = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    let users: Doc<"users">[];
+
+    if (user.role === "admin") {
+      users = await ctx.db.query("users").collect();
+    } else if (user.role === "pastor") {
+      const shepherds = await ctx.db
+        .query("users")
+        .withIndex("by_overseer", (q) => q.eq("overseerId", userId))
+        .collect();
+      const admins = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "admin"))
+        .collect();
+      const pastors = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "pastor"))
+        .collect();
+      const self = await ctx.db.get(userId);
+      const seen = new Set<Id<"users">>();
+      users = [];
+      for (const u of [self, ...shepherds, ...admins, ...pastors]) {
+        if (u && !seen.has(u._id)) {
+          seen.add(u._id);
+          users.push(u as Doc<"users">);
+        }
+      }
+    } else if (user.role === "shepherd") {
+      const admins = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "admin"))
+        .collect();
+      const pastors = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "pastor"))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+      const shepherds = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "shepherd"))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+      const self = await ctx.db.get(userId);
+      const overseer = user.overseerId ? await ctx.db.get(user.overseerId) : null;
+      const seen = new Set<Id<"users">>();
+      users = [];
+      for (const u of [self, overseer, ...admins, ...pastors, ...shepherds]) {
+        if (u && !seen.has(u._id)) {
+          seen.add(u._id);
+          users.push(u as Doc<"users">);
+        }
+      }
+    } else {
+      users = [];
+    }
+
+    return users.map((u) => {
+      const { passwordHash: _, ...rest } = u;
+      return rest;
     });
   },
 });
@@ -90,7 +170,6 @@ export const deleteUser = mutation({
     });
 
     // Notify admins about user deletion
-    const { notifyAdmins } = await import("./notificationHelpers");
     await notifyAdmins(
       ctx,
       "user_deleted",
@@ -182,7 +261,6 @@ export const bulkDelete = mutation({
         });
 
         // Notify admins about user deletion
-        const { notifyAdmins } = await import("./notificationHelpers");
         await notifyAdmins(
           ctx,
           "user_deleted",
