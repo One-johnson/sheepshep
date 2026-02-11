@@ -84,7 +84,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);
   const shepherds = useQuery(
-    api.userAssignments.getShepherds,
+    api.attendance.getShepherds,
     token ? { token } : "skip"
   );
 
@@ -128,6 +128,13 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
   });
 
   const maritalStatus = form.watch("maritalStatus");
+
+  // Auto-select shepherd when there's only one (e.g. shepherd adding to themselves)
+  React.useEffect(() => {
+    if (shepherds?.length === 1 && !form.getValues("shepherdId")) {
+      form.setValue("shepherdId", shepherds[0]._id);
+    }
+  }, [shepherds, form]);
 
   // Handle photo selection
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

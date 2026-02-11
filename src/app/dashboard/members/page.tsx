@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { ConvexReactClient } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -10,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { StatsCardSkeleton, ChartCardSkeleton } from "@/components/ui/card-skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +40,7 @@ import {
   UserCheck,
   UserX,
   UserCog,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AddMemberDialog } from "@/components/dashboard/add-member-dialog";
@@ -209,10 +213,17 @@ export default function MembersPage() {
   const [bulkNewStatus, setBulkNewStatus] = React.useState<"new_convert" | "first_timer" | "established" | "visitor" | "inactive" | "">("");
   const [isBulkChangingStatus, setIsBulkChangingStatus] = React.useState(false);
 
+  // Get current user for role checking
+  const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
+  const router = useRouter();
+  const isAdmin = currentUser?.role === "admin";
+  const isPastor = currentUser?.role === "pastor";
+  const isShepherd = currentUser?.role === "shepherd";
+
   // Fetch data
   const allMembers = useQuery(api.members.list, token ? { token } : "skip");
   const stats = useQuery(api.members.getStats, token ? { token } : "skip");
-  const shepherds = useQuery(api.userAssignments.getShepherds, token ? { token } : "skip");
+  const shepherds = useQuery(api.attendance.getShepherds, token ? { token } : "skip");
   const deleteMember = useMutation(api.members.remove);
   const bulkDeleteMembers = useMutation(api.members.bulkDelete);
   const updateMember = useMutation(api.members.update);
@@ -769,17 +780,21 @@ export default function MembersPage() {
                   <UserCog className="mr-2 h-4 w-4" />
                   Change Status
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setMemberToDelete(member);
-                    setDeleteDialogOpen(true);
-                  }}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setMemberToDelete(member);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           );
@@ -814,10 +829,20 @@ export default function MembersPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Members</h1>
-          <p className="text-muted-foreground">Manage church members</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="flex-shrink-0 md:hidden"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold">Members</h1>
+            <p className="text-muted-foreground">Manage church members</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {selectedRows.length > 0 && (
@@ -846,38 +871,53 @@ export default function MembersPage() {
                 <UserCog className="mr-2 h-4 w-4" />
                 Change Status ({selectedRows.length})
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (selectedRows.length === 1) {
-                    setMemberToDelete(selectedRows[0]);
-                    setDeleteDialogOpen(true);
-                  } else {
-                    setDeleteDialogOpen(true);
-                  }
-                }}
-                disabled={isDeleting}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Selected ({selectedRows.length})
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (selectedRows.length === 1) {
+                      setMemberToDelete(selectedRows[0]);
+                      setDeleteDialogOpen(true);
+                    } else {
+                      setDeleteDialogOpen(true);
+                    }
+                  }}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedRows.length})
+                </Button>
+              )}
             </>
           )}
-          <Button onClick={() => setAddMemberDialogOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Member
-          </Button>
+          {(isAdmin || isShepherd) && (
+            <Button onClick={() => setAddMemberDialogOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add Member
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Stats Cards */}
-      {stats && (
+      {isLoading ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+            <StatsCardSkeleton count={6} showDescription={false} />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ChartCardSkeleton />
+            <ChartCardSkeleton />
+          </div>
+          <ChartCardSkeleton />
+        </>
+      ) : stats ? (
         <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Members</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalMembers}</div>
@@ -886,7 +926,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">New Converts</CardTitle>
-              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              <Sparkles className="h-4 w-4 text-violet-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.new_convert}</div>
@@ -895,7 +935,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">First Timers</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Clock className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.first_timer}</div>
@@ -904,7 +944,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Established</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              <CheckCircle className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.established}</div>
@@ -913,7 +953,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Visitors</CardTitle>
-              <UserCheck className="h-4 w-4 text-muted-foreground" />
+              <UserCheck className="h-4 w-4 text-sky-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.visitor}</div>
@@ -922,7 +962,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Inactive</CardTitle>
-              <UserX className="h-4 w-4 text-muted-foreground" />
+              <UserX className="h-4 w-4 text-rose-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.inactive}</div>
@@ -1039,7 +1079,7 @@ export default function MembersPage() {
           </CardContent>
         </Card>
         </>
-      )}
+      ) : null}
 
       {/* Filters */}
       <Card>
@@ -1130,9 +1170,7 @@ export default function MembersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading members...</p>
-            </div>
+            <TableSkeleton columns={6} rows={8} showCheckbox={true} />
           ) : filteredMembers && filteredMembers.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

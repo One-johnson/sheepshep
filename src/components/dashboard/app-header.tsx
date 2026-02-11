@@ -26,10 +26,36 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer";
 import { Badge } from "@/components/ui/badge";
 import { GlobalSearch } from "@/components/dashboard/global-search";
+
+function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructive" | "outline" {
+  switch (role) {
+    case "admin":
+      return "destructive";
+    case "pastor":
+      return "default";
+    case "shepherd":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}
+
+function getRoleBadgeClassName(role: string): string {
+  switch (role) {
+    case "pastor":
+      return "bg-blue-500 hover:bg-blue-600 text-white border-blue-500";
+    case "shepherd":
+      return "bg-green-500 hover:bg-green-600 text-white border-green-500";
+    case "admin":
+      return "bg-red-500 hover:bg-red-600 text-white border-red-500";
+    default:
+      return "";
+  }
+}
 
 export function AppHeader() {
   const router = useRouter();
@@ -40,6 +66,13 @@ export function AppHeader() {
   const currentUser = useQuery(
     api.auth.getCurrentUser,
     token ? { token } : "skip"
+  );
+
+  const profilePhotoUrl = useQuery(
+    api.storage.getFileUrl,
+    token && currentUser?.profilePhotoId
+      ? { token, storageId: currentUser.profilePhotoId }
+      : "skip"
   );
 
   const unreadCount = useQuery(
@@ -163,17 +196,32 @@ export function AppHeader() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="flex items-center gap-2 h-auto py-2 px-3"
+                      className="flex items-center gap-2 h-auto py-2 px-3 border-4"
                     >
                       <Avatar className="h-8 w-8">
+                        {profilePhotoUrl ? (
+                          <AvatarImage 
+                            src={profilePhotoUrl} 
+                            alt={currentUser.name}
+                            className="object-cover"
+                          />
+                        ) : null}
                         <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                           {getInitials(currentUser.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col items-start">
-                        <span className="text-sm font-medium leading-none">
-                          {currentUser.preferredName || currentUser.name}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium leading-none">
+                            {currentUser.preferredName || currentUser.name}
+                          </span>
+                          <Badge 
+                            variant={getRoleBadgeVariant(currentUser.role)} 
+                            className={`text-xs h-4 px-1.5 ${getRoleBadgeClassName(currentUser.role)}`}
+                          >
+                            {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                          </Badge>
+                        </div>
                         <span className="text-xs text-muted-foreground mt-1">
                           {currentUser.email}
                         </span>
@@ -184,9 +232,17 @@ export function AppHeader() {
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {currentUser.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium leading-none">
+                            {currentUser.name}
+                          </p>
+                          <Badge 
+                            variant={getRoleBadgeVariant(currentUser.role)} 
+                            className={`text-xs h-4 px-1.5 ${getRoleBadgeClassName(currentUser.role)}`}
+                          >
+                            {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                          </Badge>
+                        </div>
                         <p className="text-xs leading-none text-muted-foreground">
                           {currentUser.email}
                         </p>
@@ -197,10 +253,12 @@ export function AppHeader() {
                       <User className="mr-2 h-4 w-4" />
                       Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </DropdownMenuItem>
+                    {currentUser.role === "admin" && (
+                      <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} variant="destructive">
                       <LogOut className="mr-2 h-4 w-4" />
@@ -214,10 +272,17 @@ export function AppHeader() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="md:hidden border-4"
                 onClick={() => router.push("/dashboard/profile")}
               >
                 <Avatar className="h-8 w-8">
+                  {profilePhotoUrl ? (
+                    <AvatarImage 
+                      src={profilePhotoUrl} 
+                      alt={currentUser.name}
+                      className="object-cover"
+                    />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                     {getInitials(currentUser.name)}
                   </AvatarFallback>

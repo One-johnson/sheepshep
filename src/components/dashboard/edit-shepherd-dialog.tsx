@@ -104,8 +104,8 @@ export function EditShepherdDialog({
       : "skip"
   );
   const pastors = useQuery(
-    api.authUsers.list,
-    token ? { token, role: "pastor" as const } : "skip"
+    api.userAssignments.getPastors,
+    token ? { token } : "skip"
   );
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);

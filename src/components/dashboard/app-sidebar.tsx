@@ -9,9 +9,15 @@ import {
   Settings,
   ClipboardList,
   FileText,
+  CalendarCheck,
+  Heart,
+  BarChart3,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +29,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const menuItems = [
+interface MenuItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: ("admin" | "pastor" | "shepherd")[]; // If undefined, show to all roles
+}
+
+const allMenuItems: MenuItem[] = [
   {
     title: "Dashboard",
     url: "/dashboard",
@@ -33,6 +46,13 @@ const menuItems = [
     title: "Users",
     url: "/dashboard/users",
     icon: Users,
+    roles: ["admin"], // Admin only
+  },
+  {
+    title: "Shepherds",
+    url: "/dashboard/shepherds",
+    icon: Users,
+    roles: ["admin", "pastor"], // Admin and Pastor
   },
   {
     title: "Members",
@@ -40,9 +60,36 @@ const menuItems = [
     icon: UserCheck,
   },
   {
+    title: "Groups",
+    url: "/dashboard/groups",
+    icon: Users,
+  },
+  {
     title: "Assignments",
     url: "/dashboard/assignments",
     icon: ClipboardList,
+  },
+  {
+    title: "Attendance",
+    url: "/dashboard/attendance",
+    icon: CalendarCheck,
+  },
+  {
+    title: "Events",
+    url: "/dashboard/events",
+    icon: Calendar,
+    roles: ["admin", "pastor", "shepherd"],
+  },
+  {
+    title: "Reports",
+    url: "/dashboard/reports",
+    icon: FileText,
+    roles: ["admin", "pastor", "shepherd"], // Shepherds view/submit their own reports
+  },
+  {
+    title: "Prayer Requests",
+    url: "/dashboard/prayer-requests",
+    icon: Heart,
   },
   {
     title: "Notifications",
@@ -50,19 +97,45 @@ const menuItems = [
     icon: Bell,
   },
   {
+    title: "Analytics",
+    url: "/dashboard/analytics",
+    icon: BarChart3,
+    roles: ["admin", "pastor"], // Admin and Pastor
+  },
+  {
     title: "Settings",
     url: "/dashboard/settings",
     icon: Settings,
+    roles: ["admin"], // Admin only
   },
   {
     title: "Audit Log",
     url: "/dashboard/audit-log",
     icon: FileText,
+    roles: ["admin"], // Admin only
   },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  
+  const currentUser = useQuery(
+    api.auth.getCurrentUser,
+    token ? { token } : "skip"
+  );
+
+  // Filter menu items based on user role
+  const menuItems = React.useMemo(() => {
+    if (!currentUser) return [];
+    
+    return allMenuItems.filter((item) => {
+      // If no roles specified, show to all
+      if (!item.roles) return true;
+      // Otherwise, check if user's role is in the allowed roles
+      return item.roles.includes(currentUser.role);
+    });
+  }, [currentUser]);
 
   return (
     <Sidebar collapsible="icon">

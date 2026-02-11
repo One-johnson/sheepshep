@@ -1,28 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
-
-// Helper function to create notification
-async function createNotification(
-  ctx: any,
-  userId: string,
-  type: string,
-  title: string,
-  message: string,
-  relatedId?: string,
-  relatedType?: string
-) {
-  await ctx.db.insert("notifications", {
-    userId: userId as any,
-    type: type as any,
-    title,
-    message,
-    relatedId,
-    relatedType: relatedType as any,
-    isRead: false,
-    createdAt: Date.now(),
-  });
-}
+import { createNotification } from "./notificationHelpers";
 
 // Create assignment (admin or pastor assigns member to shepherd)
 export const create = mutation({
@@ -90,15 +69,37 @@ export const create = mutation({
     });
 
     // Notify the shepherd
-    await createNotification(
-      ctx,
-      args.shepherdId,
-      "assignment_assigned",
-      "New Assignment",
-      `You have been assigned: ${args.title}`,
-      assignmentId,
-      "assignment"
-    );
+    try {
+      await createNotification(
+        ctx,
+        args.shepherdId,
+        "assignment_assigned",
+        "New Assignment",
+        `You have been assigned: ${args.title}`,
+        assignmentId,
+        "assignment"
+      );
+    } catch (error) {
+      // Log error but don't fail the assignment creation
+      console.error("Failed to create notification:", error);
+    }
+
+    // Notify the creator (admin/pastor) about successful assignment creation
+    try {
+      const memberName = `${member.firstName} ${member.lastName}`;
+      await createNotification(
+        ctx,
+        userId,
+        "assignment_assigned",
+        "Assignment Created",
+        `You successfully created assignment "${args.title}" for ${memberName}`,
+        assignmentId,
+        "assignment"
+      );
+    } catch (error) {
+      // Log error but don't fail the assignment creation
+      console.error("Failed to create creator notification:", error);
+    }
 
     return { assignmentId };
   },
@@ -272,14 +273,51 @@ export const remove = mutation({
     }
 
     // If pastor, check if they oversee the shepherd
+    const shepherd = await ctx.db.get(assignment.shepherdId);
     if (user.role === "pastor") {
-      const shepherd = await ctx.db.get(assignment.shepherdId);
       if (!shepherd || shepherd.overseerId !== userId) {
         throw new Error("Unauthorized - you don't oversee this shepherd");
       }
     }
 
+    // Get member and shepherd info for audit log
+    const member = await ctx.db.get(assignment.memberId);
+    const shepherdName = shepherd?.name || "Unknown";
+    const memberName = member ? `${member.firstName} ${member.lastName}` : "Unknown";
+
     await ctx.db.delete(args.assignmentId);
+
+    // Log deletion in audit log
+    await ctx.db.insert("auditLogs", {
+      userId: userId,
+      action: "delete_assignment",
+      entityType: "assignments",
+      entityId: args.assignmentId,
+      details: JSON.stringify({
+        assignmentTitle: assignment.title,
+        assignmentType: assignment.assignmentType,
+        memberId: assignment.memberId,
+        memberName: memberName,
+        shepherdId: assignment.shepherdId,
+        shepherdName: shepherdName,
+        status: assignment.status,
+        priority: assignment.priority,
+      }),
+      createdAt: Date.now(),
+    });
+
+    // Notify the shepherd
+    if (assignment.shepherdId) {
+      await createNotification(
+        ctx,
+        assignment.shepherdId,
+        "assignment_deleted",
+        "Assignment Deleted",
+        `Assignment "${assignment.title}" for ${memberName} has been deleted`,
+        args.assignmentId,
+        "assignment"
+      );
+    }
 
     return { success: true };
   },
@@ -367,15 +405,35 @@ export const bulkCreate = mutation({
         created.push(assignmentId);
 
         // Notify the shepherd
-        await createNotification(
-          ctx,
-          assignmentData.shepherdId,
-          "assignment_assigned",
-          "New Assignment",
-          `You have been assigned: ${assignmentData.title}`,
-          assignmentId,
-          "assignment"
-        );
+        try {
+          await createNotification(
+            ctx,
+            assignmentData.shepherdId,
+            "assignment_assigned",
+            "New Assignment",
+            `You have been assigned: ${assignmentData.title}`,
+            assignmentId,
+            "assignment"
+          );
+        } catch (error) {
+          console.error("Failed to create shepherd notification:", error);
+        }
+
+        // Notify the creator (admin/pastor) about successful assignment creation
+        try {
+          const memberName = `${member.firstName} ${member.lastName}`;
+          await createNotification(
+            ctx,
+            userId,
+            "assignment_assigned",
+            "Assignment Created",
+            `You successfully created assignment "${assignmentData.title}" for ${memberName}`,
+            assignmentId,
+            "assignment"
+          );
+        } catch (error) {
+          console.error("Failed to create creator notification:", error);
+        }
       } catch (error: any) {
         errors.push({ index: i, error: error.message || "Unknown error" });
       }
@@ -425,15 +483,53 @@ export const bulkDelete = mutation({
         }
 
         // If pastor, check if they oversee the shepherd
+        const shepherd = await ctx.db.get(assignment.shepherdId);
         if (user.role === "pastor") {
-          const shepherd = await ctx.db.get(assignment.shepherdId);
           if (!shepherd || shepherd.overseerId !== userId) {
             errors.push({ assignmentId, error: "You don't oversee this shepherd" });
             continue;
           }
         }
 
+        // Get member info for audit log
+        const member = await ctx.db.get(assignment.memberId);
+        const shepherdName = shepherd?.name || "Unknown";
+        const memberName = member ? `${member.firstName} ${member.lastName}` : "Unknown";
+
         await ctx.db.delete(assignmentId);
+
+        // Log deletion in audit log
+        await ctx.db.insert("auditLogs", {
+          userId: userId,
+          action: "delete_assignment",
+          entityType: "assignments",
+          entityId: assignmentId,
+          details: JSON.stringify({
+            assignmentTitle: assignment.title,
+            assignmentType: assignment.assignmentType,
+            memberId: assignment.memberId,
+            memberName: memberName,
+            shepherdId: assignment.shepherdId,
+            shepherdName: shepherdName,
+            status: assignment.status,
+            priority: assignment.priority,
+          }),
+          createdAt: Date.now(),
+        });
+
+        // Notify the shepherd
+        if (assignment.shepherdId) {
+          await createNotification(
+            ctx,
+            assignment.shepherdId,
+            "assignment_deleted",
+            "Assignment Deleted",
+            `Assignment "${assignment.title}" for ${memberName} has been deleted`,
+            assignmentId,
+            "assignment"
+          );
+        }
+
         deleted.push(assignmentId);
       } catch (error: any) {
         errors.push({ assignmentId, error: error.message || "Unknown error" });

@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { StatsCardSkeleton } from "@/components/ui/card-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -48,8 +50,10 @@ import {
   FileDown,
   MoreHorizontal,
   Eye,
+  EyeOff,
   Pencil,
   UserRoundCog,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AddPastorDialog } from "@/components/dashboard/add-pastor-dialog";
@@ -66,6 +70,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 
 // Type for user entry
 type UserEntry = {
@@ -126,6 +131,15 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
   }
 }
 
+function getRoleBadgeClassName(role: string): string {
+  switch (role) {
+    case "pastor":
+      return "bg-blue-500 hover:bg-blue-600 text-white border-blue-500";
+    default:
+      return "";
+  }
+}
+
 // Component to display user photo
 function UserPhotoCell({
   userId,
@@ -171,6 +185,7 @@ export default function UsersPage() {
   const deleteUser = useMutation(api.authUsers.deleteUser);
   const bulkDeleteUsers = useMutation(api.authUsers.bulkDelete);
   const updateUserProfile = useMutation(api.auth.updateUserProfile);
+  const resetPassword = useMutation(api.auth.resetPassword);
 
   const [selectedRows, setSelectedRows] = React.useState<UserEntry[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
@@ -187,6 +202,12 @@ export default function UsersPage() {
   const [userToChangeRole, setUserToChangeRole] = React.useState<UserEntry | null>(null);
   const [newRole, setNewRole] = React.useState<"admin" | "pastor" | "shepherd" | "">("");
   const [isChangingRole, setIsChangingRole] = React.useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = React.useState(false);
+  const [userToResetPassword, setUserToResetPassword] = React.useState<UserEntry | null>(null);
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [isResettingPassword, setIsResettingPassword] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const isLoading = users === undefined || stats === undefined;
 
@@ -226,6 +247,39 @@ export default function UsersPage() {
       toast.error(error.message || "Failed to change user role");
     } finally {
       setIsChangingRole(false);
+    }
+  };
+
+  // Handle password reset
+  const handlePasswordReset = async () => {
+    if (!token || !userToResetPassword || !newPassword) return;
+
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      await resetPassword({
+        token,
+        userId: userToResetPassword._id,
+        newPassword,
+      });
+      toast.success(`Password reset successfully for ${userToResetPassword.name}`);
+      setResetPasswordDialogOpen(false);
+      setUserToResetPassword(null);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reset password");
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -466,7 +520,10 @@ export default function UsersPage() {
         cell: ({ row }) => {
           const role = row.original.role;
           return (
-            <Badge variant={getRoleBadgeVariant(role)}>
+            <Badge 
+              variant={getRoleBadgeVariant(role)}
+              className={getRoleBadgeClassName(role)}
+            >
               {role.charAt(0).toUpperCase() + role.slice(1)}
             </Badge>
           );
@@ -584,6 +641,18 @@ export default function UsersPage() {
                   <UserRoundCog className="mr-2 h-4 w-4" />
                   Change Role
                 </DropdownMenuItem>
+                {(user.role === "shepherd" || user.role === "pastor") && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUserToResetPassword(user);
+                      setResetPasswordDialogOpen(true);
+                    }}
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Reset Password
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={(e) => {
@@ -649,7 +718,12 @@ export default function UsersPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <StatsCardSkeleton count={5} />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -703,8 +777,9 @@ export default function UsersPage() {
             <div className="text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
             <p className="text-xs text-muted-foreground">Church members</p>
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
 
       {/* Users Table */}
       <Card>
@@ -765,9 +840,7 @@ export default function UsersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading users...</p>
-            </div>
+            <TableSkeleton columns={6} rows={8} showCheckbox={true} />
           ) : users && users.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -890,7 +963,10 @@ export default function UsersPage() {
             <div className="space-y-2">
               <Label htmlFor="current-role">Current Role</Label>
               <div className="flex items-center gap-2">
-                <Badge variant={getRoleBadgeVariant(userToChangeRole?.role || "")}>
+                <Badge 
+                  variant={getRoleBadgeVariant(userToChangeRole?.role || "")}
+                  className={getRoleBadgeClassName(userToChangeRole?.role || "")}
+                >
                   {userToChangeRole?.role
                     ? userToChangeRole.role.charAt(0).toUpperCase() + userToChangeRole.role.slice(1)
                     : ""}
@@ -933,6 +1009,106 @@ export default function UsersPage() {
               disabled={isChangingRole || !newRole || userToChangeRole?.role === newRole}
             >
               {isChangingRole ? "Changing..." : "Change Role"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog
+        open={resetPasswordDialogOpen}
+        onOpenChange={(open) => {
+          setResetPasswordDialogOpen(open);
+          if (!open) {
+            setUserToResetPassword(null);
+            setNewPassword("");
+            setConfirmPassword("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Reset password for {userToResetPassword?.name} ({userToResetPassword?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 8 characters)"
+                  disabled={isResettingPassword}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isResettingPassword}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {newPassword && newPassword.length < 8 && (
+                <p className="text-sm text-destructive">
+                  Password must be at least 8 characters
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                disabled={isResettingPassword}
+              />
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-sm text-destructive">Passwords do not match</p>
+              )}
+            </div>
+            <div className="rounded-md bg-muted p-3">
+              <p className="text-sm text-muted-foreground">
+                <strong>Note:</strong> The user will need to use this new password to log in. Make sure to communicate the new password securely.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordDialogOpen(false);
+                setUserToResetPassword(null);
+                setNewPassword("");
+                setConfirmPassword("");
+              }}
+              disabled={isResettingPassword}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePasswordReset}
+              disabled={
+                isResettingPassword ||
+                !newPassword ||
+                newPassword.length < 8 ||
+                newPassword !== confirmPassword
+              }
+            >
+              {isResettingPassword ? "Resetting..." : "Reset Password"}
             </Button>
           </div>
         </DialogContent>

@@ -55,6 +55,28 @@ export const getStats = query({
       .withIndex("by_user_unread", (q) => q.eq("userId", userId).eq("isRead", false))
       .collect();
 
+    // Get assignments for shepherd (pending/in_progress)
+    let pendingAssignments = 0;
+    if (user.role === "shepherd") {
+      const assignments = await ctx.db
+        .query("assignments")
+        .withIndex("by_shepherd", (q) => q.eq("shepherdId", userId))
+        .collect();
+      pendingAssignments = assignments.filter(
+        (a) => a.status === "pending" || a.status === "in_progress"
+      ).length;
+    }
+
+    // Pending attendance (submitted by shepherd, awaiting approval)
+    const pendingAttendance = attendance.filter(
+      (a) => a.approvalStatus === "pending" && a.submittedBy === userId
+    ).length;
+
+    // At-risk members (for shepherd: their members with risk; for pastor: their zone; for admin: all)
+    const atRiskMembers = members.filter(
+      (m) => m.isActive && m.attendanceRiskLevel && m.attendanceRiskLevel !== "none"
+    ).length;
+
     // Calculate attendance stats for last 7 days
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const recentAttendance = attendance.filter((a) => a.date >= sevenDaysAgo);
@@ -98,12 +120,140 @@ export const getStats = query({
       totalPastors: pastors.length,
       unreadNotifications: notifications.length,
       recentAttendance: approvedAttendance.length,
+      pendingAssignments,
+      pendingAttendance,
+      atRiskMembers,
       statusCounts,
       attendanceByDay: Object.entries(attendanceByDay).map(([date, count]) => ({
         date,
         count,
       })),
       reportsByType,
+    };
+  },
+});
+
+// Shepherd-specific dashboard data (assignments, at-risk members, recent activity)
+export const getShepherdDashboardData = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.role !== "shepherd") {
+      return { pendingAssignments: [], atRiskMembers: [], recentReports: [], openPrayerRequests: [], myGroups: [] };
+    }
+
+    // Groups the shepherd leads
+    const groups = await ctx.db.query("groups").collect();
+    const myGroups = groups
+      .filter((g) => g.isActive && g.leaderId === userId)
+      .map((g) => ({
+        _id: g._id,
+        name: g.name,
+        meetingDay: g.meetingDay,
+      }));
+
+    // Pending assignments (need report)
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_shepherd", (q) => q.eq("shepherdId", userId))
+      .collect();
+    const pendingAssignments = assignments
+      .filter((a) => a.status === "pending" || a.status === "in_progress")
+      .sort((a, b) => (a.dueDate ?? a.createdAt) - (b.dueDate ?? b.createdAt))
+      .slice(0, 5);
+
+    // Get member names for assignments
+    const assignmentWithMembers = await Promise.all(
+      pendingAssignments.map(async (a) => {
+        const member = await ctx.db.get(a.memberId);
+        return {
+          ...a,
+          memberName: member ? `${member.firstName} ${member.lastName}` : "Unknown",
+        };
+      })
+    );
+
+    // At-risk members
+    const allMembers = await ctx.db
+      .query("members")
+      .withIndex("by_shepherd", (q) => q.eq("shepherdId", userId))
+      .collect();
+    const atRiskMembers = allMembers
+      .filter(
+        (m) =>
+          m.isActive &&
+          m.attendanceRiskLevel &&
+          m.attendanceRiskLevel !== "none"
+      )
+      .sort((a, b) => {
+        const order = { high: 0, medium: 1, low: 2 };
+        return (order[a.attendanceRiskLevel as keyof typeof order] ?? 3) - (order[b.attendanceRiskLevel as keyof typeof order] ?? 3);
+      })
+      .slice(0, 5)
+      .map((m) => ({
+        _id: m._id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        attendanceRiskLevel: m.attendanceRiskLevel,
+        lastAttendanceDate: m.lastAttendanceDate,
+      }));
+
+    // Recent reports
+    const allReports = await ctx.db
+      .query("reports")
+      .withIndex("by_shepherd", (q) => q.eq("shepherdId", userId))
+      .collect();
+    const reports = allReports
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5);
+
+    const recentReports = await Promise.all(
+      reports.map(async (r) => {
+        const member = await ctx.db.get(r.memberId);
+        return {
+          ...r,
+          memberName: member ? `${member.firstName} ${member.lastName}` : "Unknown",
+        };
+      })
+    );
+
+    // Open prayer requests (created by this shepherd)
+    const prayerRequests = await ctx.db
+      .query("prayerRequests")
+      .withIndex("by_requested_by", (q) => q.eq("requestedBy", userId))
+      .collect();
+    const openPrayerRequests = prayerRequests
+      .filter((pr) => pr.status === "open")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 3);
+
+    const openWithMembers = await Promise.all(
+      openPrayerRequests.map(async (pr) => {
+        const member = await ctx.db.get(pr.memberId);
+        return {
+          ...pr,
+          memberName: member ? `${member.firstName} ${member.lastName}` : "Unknown",
+        };
+      })
+    );
+
+    return {
+      pendingAssignments: assignmentWithMembers,
+      atRiskMembers,
+      recentReports,
+      openPrayerRequests: openWithMembers,
+      myGroups,
     };
   },
 });

@@ -108,7 +108,7 @@ export function ViewMemberDialog({ open, onOpenChange, member }: ViewMemberDialo
 
   // Fetch shepherd info from the list of shepherds
   const shepherds = useQuery(
-    api.userAssignments.getShepherds,
+    api.attendance.getShepherds,
     token ? { token } : "skip"
   );
   

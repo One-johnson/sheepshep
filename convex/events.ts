@@ -1,28 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
-
-// Helper function to create notification
-async function createNotification(
-  ctx: any,
-  userId: string,
-  type: string,
-  title: string,
-  message: string,
-  relatedId?: string,
-  relatedType?: string
-) {
-  await ctx.db.insert("notifications", {
-    userId: userId as any,
-    type: type as any,
-    title,
-    message,
-    relatedId,
-    relatedType: relatedType as any,
-    isRead: false,
-    createdAt: Date.now(),
-  });
-}
+import { createNotification, notifyAdmins } from "./notificationHelpers";
 
 // Create event
 export const create = mutation({
@@ -38,6 +17,14 @@ export const create = mutation({
       v.literal("conference"),
       v.literal("outreach"),
       v.literal("other")
+    ),
+    status: v.optional(
+      v.union(
+        v.literal("upcoming"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("postponed")
+      )
     ),
     startDate: v.number(), // Unix timestamp
     endDate: v.optional(v.number()), // Unix timestamp
@@ -55,9 +42,9 @@ export const create = mutation({
       throw new Error("User not found");
     }
 
-    // Admin, pastor, or shepherd can create events
-    if (user.role !== "admin" && user.role !== "pastor" && user.role !== "shepherd") {
-      throw new Error("Unauthorized - only admins, pastors, and shepherds can create events");
+    // Only admin can create events
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized - only admins can create events");
     }
 
     // Verify group if provided
@@ -72,6 +59,7 @@ export const create = mutation({
       title: args.title,
       description: args.description,
       eventType: args.eventType,
+      status: args.status ?? "upcoming",
       startDate: args.startDate,
       endDate: args.endDate,
       location: args.location,
@@ -96,6 +84,16 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
+    // Notify admins about event creation
+    await notifyAdmins(
+      ctx,
+      "event_created",
+      "New Event Created",
+      `${user.name} created a new event: ${args.title}`,
+      eventId,
+      "event"
+    );
+
     return { eventId };
   },
 });
@@ -113,6 +111,56 @@ export const getById = query({
     }
 
     return await ctx.db.get(args.eventId);
+  },
+});
+
+// Get event stats (for dashboard stats cards)
+export const getStats = query({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const events = await ctx.db
+      .query("events")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    const now = Date.now();
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const startOfMonthTs = startOfMonth.getTime();
+    const endOfMonth = new Date(startOfMonth);
+    endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+    const endOfMonthTs = endOfMonth.getTime() - 1;
+
+    const thisMonth = events.filter(
+      (e) => e.startDate >= startOfMonthTs && e.startDate <= endOfMonthTs
+    );
+    const upcomingCount = events.filter(
+      (e) => (e.status === "upcoming" || e.status === undefined) && e.startDate >= now
+    ).length;
+
+    const byType: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+    for (const e of events) {
+      byType[e.eventType] = (byType[e.eventType] ?? 0) + 1;
+      const s = e.status ?? "upcoming";
+      byStatus[s] = (byStatus[s] ?? 0) + 1;
+    }
+
+    return {
+      total: events.length,
+      thisMonth: thisMonth.length,
+      upcoming: upcomingCount,
+      byType,
+      byStatus,
+    };
   },
 });
 
@@ -135,6 +183,14 @@ export const list = query({
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    status: v.optional(
+      v.union(
+        v.literal("upcoming"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("postponed")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
@@ -145,6 +201,9 @@ export const list = query({
     let events = await ctx.db.query("events").collect();
 
     // Apply filters
+    if (args.status) {
+      events = events.filter((e) => (e.status ?? "upcoming") === args.status);
+    }
     if (args.eventType) {
       events = events.filter((e) => e.eventType === args.eventType);
     }
@@ -192,6 +251,14 @@ export const update = mutation({
     location: v.optional(v.string()),
     groupId: v.optional(v.id("groups")),
     isActive: v.optional(v.boolean()),
+    status: v.optional(
+      v.union(
+        v.literal("upcoming"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("postponed")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
@@ -209,13 +276,9 @@ export const update = mutation({
       throw new Error("User not found");
     }
 
-    // Check permissions - organizer, admin, or pastor can update
-    if (
-      user.role !== "admin" &&
-      user.role !== "pastor" &&
-      event.organizerId !== userId
-    ) {
-      throw new Error("Unauthorized");
+    // Only admin can update events
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized - only admins can update events");
     }
 
     const updates: any = {
@@ -230,10 +293,26 @@ export const update = mutation({
     if (args.location !== undefined) updates.location = args.location;
     if (args.groupId !== undefined) updates.groupId = args.groupId;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
+    if (args.status !== undefined) updates.status = args.status;
 
     await ctx.db.patch(args.eventId, updates);
 
-    return await ctx.db.get(args.eventId);
+    const updatedEvent = await ctx.db.get(args.eventId);
+
+    // Notify organizer about event update
+    if (event.organizerId) {
+      await createNotification(
+        ctx,
+        event.organizerId,
+        "event_updated",
+        "Event Updated",
+        `Event "${event.title}" has been updated`,
+        args.eventId,
+        "event"
+      );
+    }
+
+    return updatedEvent;
   },
 });
 
@@ -259,9 +338,9 @@ export const remove = mutation({
       throw new Error("Event not found");
     }
 
-    // Only admin or organizer can delete
-    if (user.role !== "admin" && event.organizerId !== userId) {
-      throw new Error("Unauthorized");
+    // Only admin can delete events
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized - only admins can delete events");
     }
 
     // Soft delete
@@ -269,6 +348,29 @@ export const remove = mutation({
       isActive: false,
       updatedAt: Date.now(),
     });
+
+    // Notify organizer about event deletion
+    if (event.organizerId) {
+      await createNotification(
+        ctx,
+        event.organizerId,
+        "event_deleted",
+        "Event Deleted",
+        `Event "${event.title}" has been deleted`,
+        args.eventId,
+        "event"
+      );
+    }
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "event_deleted",
+      "Event Deleted",
+      `${user.name} deleted event: ${event.title}`,
+      args.eventId,
+      "event"
+    );
 
     return { success: true };
   },

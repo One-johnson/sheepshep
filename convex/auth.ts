@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import * as bcrypt from "bcryptjs";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { createNotification, notifyAdmins } from "./notificationHelpers";
 
 // Generate session token without crypto (using Math.random)
 function generateSessionToken(): string {
@@ -337,6 +338,16 @@ export const register = mutation({
       childrenCount: args.childrenCount,
     });
 
+    // Notify admins about new user creation
+    await notifyAdmins(
+      ctx,
+      "user_created",
+      "New User Created",
+      `${args.name} (${args.email}) has been created as ${args.role}`,
+      userId,
+      "user"
+    );
+
     return { userId, success: true };
   },
 });
@@ -501,6 +512,94 @@ export const changePassword = mutation({
   },
 });
 
+// Reset password (admin only, for shepherds and pastors)
+export const resetPassword = mutation({
+  args: {
+    token: v.string(),
+    userId: v.id("users"),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    // Check if current user is admin
+    const currentUser = await ctx.db.get(currentUserId);
+    if (!currentUser) {
+      throw new Error("User not found");
+    }
+
+    const currentUserDoc = currentUser as any;
+    if (currentUserDoc.role !== "admin") {
+      throw new Error("Unauthorized - admin access required");
+    }
+
+    // Get target user
+    const targetUser = await ctx.db.get(args.userId);
+    if (!targetUser) {
+      throw new Error("User not found");
+    }
+
+    const targetUserDoc = targetUser as any;
+
+    // Only allow resetting password for shepherds and pastors
+    if (targetUserDoc.role !== "shepherd" && targetUserDoc.role !== "pastor") {
+      throw new Error("Can only reset password for shepherds and pastors");
+    }
+
+    // Prevent resetting password for first admin even if they're a pastor
+    if (targetUserDoc.isFirstAdmin) {
+      throw new Error("Cannot reset password for the first admin");
+    }
+
+    // Validate password length
+    if (args.newPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters");
+    }
+
+    // Hash new password
+    const newPasswordHash = bcrypt.hashSync(args.newPassword, 10);
+
+    // Update password
+    await ctx.db.patch(args.userId, {
+      passwordHash: newPasswordHash,
+      updatedAt: Date.now(),
+    });
+
+    // Create audit log
+    try {
+      await ctx.db.insert("auditLogs", {
+        userId: currentUserId,
+        action: "password_reset",
+        entityType: "user",
+        entityId: args.userId,
+        details: `Admin reset password for ${targetUserDoc.name} (${targetUserDoc.email})`,
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      console.error("Failed to create audit log:", error);
+    }
+
+    // Notify admins about password reset
+    try {
+      await notifyAdmins(
+        ctx,
+        "user_updated",
+        "Password Reset",
+        `${currentUserDoc.name} reset password for ${targetUserDoc.name} (${targetUserDoc.email})`,
+        args.userId,
+        "user"
+      );
+    } catch (error) {
+      console.error("Failed to notify admins:", error);
+    }
+
+    return { success: true };
+  },
+});
+
 // Update user profile
 export const updateProfile = mutation({
   args: {
@@ -569,6 +668,17 @@ export const updateProfile = mutation({
     if (!updatedUser) {
       throw new Error("User not found");
     }
+
+    // Notify user about profile update
+    await createNotification(
+      ctx,
+      userId,
+      "profile_updated",
+      "Profile Updated",
+      "Your profile information has been updated",
+      userId,
+      "user"
+    );
 
     const userDoc = updatedUser as any;
     const { passwordHash: _, ...userWithoutPassword } = userDoc;
@@ -704,6 +814,27 @@ export const updateUserProfile = mutation({
     if (!updatedUser) {
       throw new Error("User not found");
     }
+
+    // Notify the user about profile update
+    await createNotification(
+      ctx,
+      args.userId,
+      "user_updated",
+      "Profile Updated",
+      `Your profile has been updated by ${currentUser.name}`,
+      args.userId,
+      "user"
+    );
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "user_updated",
+      "User Profile Updated",
+      `${currentUser.name} updated ${updatedUser.name}'s profile`,
+      args.userId,
+      "user"
+    );
 
     const updatedUserDoc = updatedUser as any;
     const { passwordHash: _, ...userWithoutPassword } = updatedUserDoc;

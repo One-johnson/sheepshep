@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Loader2, Save, Key } from "lucide-react";
+import { Loader2, Save, Key, ArrowLeft } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ const settingsSchema = z.object({
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
+  const router = useRouter();
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   
   const settings = useQuery(
@@ -300,11 +302,21 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-0">
-          Manage your church management system settings
-        </p>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.back()}
+          className="flex-shrink-0 md:hidden"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-0">
+            Manage your church management system settings
+          </p>
+        </div>
       </div>
 
       <Form {...form}>

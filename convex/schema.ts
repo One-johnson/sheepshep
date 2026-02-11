@@ -146,7 +146,9 @@ export default defineSchema({
 
   // Attendance records
   attendance: defineTable({
-    memberId: v.id("members"),
+    memberId: v.optional(v.id("members")), // For member attendance
+    userId: v.optional(v.id("users")), // For shepherd/user attendance
+    groupId: v.optional(v.id("groups")), // When set: group meeting attendance (leader takes for group members on meeting day)
     date: v.number(), // Unix timestamp for the attendance date
     attendanceStatus: v.union(
       v.literal("present"),
@@ -155,7 +157,7 @@ export default defineSchema({
       v.literal("late")
     ),
     // Submission and approval workflow
-    submittedBy: v.id("users"), // Shepherd who submitted
+    submittedBy: v.id("users"), // User who submitted (shepherd, admin, or pastor)
     submittedAt: v.number(),
     approvalStatus: v.union(
       v.literal("pending"), // Awaiting approval
@@ -168,6 +170,8 @@ export default defineSchema({
     notes: v.optional(v.string()),
   })
     .index("by_member", ["memberId"])
+    .index("by_user", ["userId"])
+    .index("by_group", ["groupId"])
     .index("by_date", ["date"])
     .index("by_submitted_by", ["submittedBy"])
     .index("by_approval_status", ["approvalStatus"]),
@@ -395,8 +399,25 @@ export default defineSchema({
       v.literal("attendance_rejected"),
       v.literal("assignment_assigned"),
       v.literal("assignment_completed"),
+      v.literal("assignment_deleted"),
       v.literal("report_submitted"),
       v.literal("member_assigned"),
+      v.literal("member_created"),
+      v.literal("member_updated"),
+      v.literal("member_deleted"),
+      v.literal("user_created"),
+      v.literal("user_updated"),
+      v.literal("user_deleted"),
+      v.literal("profile_updated"),
+      v.literal("settings_updated"),
+      v.literal("group_created"),
+      v.literal("group_updated"),
+      v.literal("group_deleted"),
+      v.literal("group_member_added"),
+      v.literal("group_member_removed"),
+      v.literal("event_created"),
+      v.literal("event_updated"),
+      v.literal("event_deleted"),
       v.literal("prayer_request"),
       v.literal("prayer_response"),
       v.literal("system"),
@@ -411,10 +432,12 @@ export default defineSchema({
         v.literal("assignment"),
         v.literal("report"),
         v.literal("member"),
+        v.literal("user"),
         v.literal("group"),
         v.literal("event"),
         v.literal("reminder"),
-        v.literal("prayer_request")
+        v.literal("prayer_request"),
+        v.literal("settings")
       )
     ),
     isRead: v.boolean(),
@@ -428,18 +451,7 @@ export default defineSchema({
   groups: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
-    groupType: v.union(
-      v.literal("bacenta"),
-      v.literal("bible_study"),
-      v.literal("prayer_group"),
-      v.literal("youth_group"),
-      v.literal("women_group"),
-      v.literal("men_group"),
-      v.literal("ushers"),
-      v.literal("first_service_choir"),
-      v.literal("second_service_choir"),
-      v.literal("other")
-    ),
+    meetingDay: v.optional(v.number()), // 0=Sunday, 1=Monday, ... 6=Saturday - day when group meets
     createdBy: v.id("users"),
     leaderId: v.optional(v.id("users")), // Group leader (shepherd/pastor)
     isActive: v.boolean(),
@@ -447,8 +459,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_created_by", ["createdBy"])
-    .index("by_leader", ["leaderId"])
-    .index("by_type", ["groupType"]),
+    .index("by_leader", ["leaderId"]),
 
   // Group members - many-to-many relationship (members can belong to multiple groups)
   groupMembers: defineTable({
@@ -486,6 +497,14 @@ export default defineSchema({
       v.literal("conference"),
       v.literal("outreach"),
       v.literal("other")
+    ),
+    status: v.optional(
+      v.union(
+        v.literal("upcoming"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("postponed")
+      )
     ),
     startDate: v.number(), // Unix timestamp
     endDate: v.optional(v.number()), // Unix timestamp

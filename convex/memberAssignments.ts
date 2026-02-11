@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { createNotification } from "./notificationHelpers";
 
 // Get members by shepherd
 export const getMembersByShepherd = query({
@@ -116,6 +117,8 @@ export const assignMemberToShepherd = mutation({
       updatedAt: Date.now(),
     });
 
+    const memberName = `${member.firstName} ${member.lastName}`;
+
     // Log assignment change
     await ctx.db.insert("auditLogs", {
       userId: userId,
@@ -123,13 +126,37 @@ export const assignMemberToShepherd = mutation({
       entityType: "members",
       entityId: args.memberId,
       details: JSON.stringify({
-        memberName: `${member.firstName} ${member.lastName}`,
+        memberName: memberName,
         shepherdId: args.shepherdId,
         shepherdName: shepherd.name,
         previousShepherdId: previousShepherdId || null,
       }),
       createdAt: Date.now(),
     });
+
+    // Notify new shepherd
+    await createNotification(
+      ctx,
+      args.shepherdId,
+      "member_assigned",
+      "Member Assigned",
+      `${memberName} has been assigned to you`,
+      args.memberId,
+      "member"
+    );
+
+    // Notify previous shepherd if changed
+    if (previousShepherdId && previousShepherdId !== args.shepherdId) {
+      await createNotification(
+        ctx,
+        previousShepherdId,
+        "member_assigned",
+        "Member Reassigned",
+        `${memberName} has been reassigned to another shepherd`,
+        args.memberId,
+        "member"
+      );
+    }
 
     return { success: true };
   },
@@ -182,6 +209,8 @@ export const bulkAssignMembers = mutation({
           updatedAt: Date.now(),
         });
 
+        const memberName = `${member.firstName} ${member.lastName}`;
+
         // Log assignment
         await ctx.db.insert("auditLogs", {
           userId: userId,
@@ -189,13 +218,37 @@ export const bulkAssignMembers = mutation({
           entityType: "members",
           entityId: memberId,
           details: JSON.stringify({
-            memberName: `${member.firstName} ${member.lastName}`,
+            memberName: memberName,
             shepherdId: args.shepherdId,
             shepherdName: shepherd.name,
             previousShepherdId: previousShepherdId || null,
           }),
           createdAt: Date.now(),
         });
+
+        // Notify new shepherd
+        await createNotification(
+          ctx,
+          args.shepherdId,
+          "member_assigned",
+          "Member Assigned",
+          `${memberName} has been assigned to you`,
+          memberId,
+          "member"
+        );
+
+        // Notify previous shepherd if changed
+        if (previousShepherdId && previousShepherdId !== args.shepherdId) {
+          await createNotification(
+            ctx,
+            previousShepherdId,
+            "member_assigned",
+            "Member Reassigned",
+            `${memberName} has been reassigned to another shepherd`,
+            memberId,
+            "member"
+          );
+        }
 
         results.success.push(memberId);
       } catch (error: any) {
@@ -210,7 +263,7 @@ export const bulkAssignMembers = mutation({
   },
 });
 
-// Get assignment statistics for members
+// Get assignment statistics for members (admin and pastor)
 export const getMemberAssignmentStats = query({
   args: {
     token: v.string(),
@@ -222,20 +275,33 @@ export const getMemberAssignmentStats = query({
     }
 
     const user = await ctx.db.get(userId);
-    if (!user || user.role !== "admin") {
-      throw new Error("Unauthorized - admin only");
+    if (!user) {
+      throw new Error("User not found");
     }
 
-    const allMembers = await ctx.db
+    // Allow admins and pastors
+    if (user.role !== "admin" && user.role !== "pastor") {
+      throw new Error("Unauthorized - admin or pastor access required");
+    }
+
+    let allMembers = await ctx.db
       .query("members")
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
-    const allShepherds = await ctx.db
+    let allShepherds = await ctx.db
       .query("users")
       .withIndex("by_role", (q) => q.eq("role", "shepherd"))
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
+
+    // Filter by role permissions
+    if (user.role === "pastor") {
+      // Pastors only see their shepherds and their members
+      allShepherds = allShepherds.filter((s) => s.overseerId === userId);
+      const shepherdIds = allShepherds.map((s) => s._id);
+      allMembers = allMembers.filter((m) => shepherdIds.includes(m.shepherdId));
+    }
 
     // Count members per shepherd
     const memberCounts = allShepherds.map((shepherd) => {

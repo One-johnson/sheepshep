@@ -78,8 +78,8 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);
   const pastors = useQuery(
-    api.authUsers.list,
-    token ? { token, role: "pastor" as const } : "skip"
+    api.userAssignments.getPastors,
+    token ? { token } : "skip"
   );
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
