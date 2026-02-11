@@ -498,6 +498,14 @@ export default defineSchema({
       v.literal("outreach"),
       v.literal("other")
     ),
+    status: v.optional(
+      v.union(
+        v.literal("upcoming"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("postponed")
+      )
+    ),
     startDate: v.number(), // Unix timestamp
     endDate: v.optional(v.number()), // Unix timestamp
     location: v.optional(v.string()),

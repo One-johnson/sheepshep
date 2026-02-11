@@ -132,7 +132,9 @@ export default function GroupsPage() {
             Groups
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">
-            Create groups (bacenta, bible study, etc.) with a meeting day. Leaders can take attendance for members on the meeting day.
+            {isAdmin
+              ? "Create groups with a meeting day and assign shepherds. Leaders take attendance for members on the meeting day."
+              : "Groups assigned to you. Take attendance for members on their meeting day."}
           </p>
         </div>
       </div>
@@ -141,9 +143,11 @@ export default function GroupsPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-lg sm:text-xl">All Groups</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">{isAdmin ? "All Groups" : "My Groups"}</CardTitle>
               <CardDescription>
-                Groups with a meeting day allow leaders to take attendance for members
+                {isAdmin
+                  ? "Groups with a meeting day allow leaders to take attendance for members"
+                  : "Groups you lead. Take attendance for members on their meeting day."}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -171,11 +175,11 @@ export default function GroupsPage() {
           ) : filteredGroups.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">No groups yet</p>
+              <p className="font-medium">{canCreateGroup ? "No groups yet" : "No groups assigned"}</p>
               <p className="text-sm mt-1">
                 {canCreateGroup
-                  ? "Create a group and assign a meeting day. Then add members and take attendance on meeting days."
-                  : "Contact an admin to create groups."}
+                  ? "Create a group and assign a meeting day. Members belonging to the shepherd will be added automatically."
+                  : "Contact an admin to have groups assigned to you."}
               </p>
               {canCreateGroup && (
                 <Button className="mt-4" onClick={() => setCreateDialogOpen(true)}>

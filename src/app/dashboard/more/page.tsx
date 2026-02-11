@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   ClipboardList,
   CalendarCheck,
+  Calendar,
   Heart,
   Bell,
 } from "lucide-react";
@@ -70,6 +71,12 @@ export default function MorePage() {
       title: "Attendance",
       icon: CalendarCheck,
       onClick: () => router.push("/dashboard/attendance"),
+    },
+    {
+      title: "Events",
+      icon: Calendar,
+      onClick: () => router.push("/dashboard/events"),
+      roles: ["admin", "pastor", "shepherd"],
     },
     {
       title: "Reports",

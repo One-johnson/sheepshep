@@ -46,7 +46,6 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Users,
   Filter,
   Plus,
   Download,
@@ -177,6 +176,7 @@ function getApprovalBadgeProps(status: string) {
 }
 
 export default function AttendancePage() {
+  const router = useRouter();
   const [token, setToken] = React.useState<string | null>(null);
   const [isClient, setIsClient] = React.useState(false);
 
@@ -944,8 +944,6 @@ export default function AttendancePage() {
     return <div className="p-6">Loading...</div>;
   }
 
-  const router = useRouter();
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center gap-4">
@@ -980,7 +978,7 @@ export default function AttendancePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Total Records</CardTitle>
-              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
@@ -990,7 +988,7 @@ export default function AttendancePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Pending Approval</CardTitle>
-              <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+              <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold">{stats.pending}</div>
@@ -1000,7 +998,7 @@ export default function AttendancePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Today's Attendance</CardTitle>
-              <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+              <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold">{stats.todayPresent}</div>
@@ -1012,7 +1010,7 @@ export default function AttendancePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Approved</CardTitle>
-              <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+              <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold">{stats.approved}</div>

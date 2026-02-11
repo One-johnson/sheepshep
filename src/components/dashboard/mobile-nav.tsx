@@ -11,6 +11,7 @@ import {
   UserCheck,
   ClipboardList,
   CalendarCheck,
+  Calendar,
   MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const allNavItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users, roles: ["admin"] },
   { title: "Shepherds", url: "/dashboard/shepherds", icon: Users, roles: ["pastor"] },
   { title: "Assignments", url: "/dashboard/assignments", icon: ClipboardList, roles: ["admin", "pastor", "shepherd"] },
+  { title: "Events", url: "/dashboard/events", icon: Calendar, roles: ["admin", "pastor", "shepherd"] },
   { title: "More", url: "/dashboard/more", icon: MoreHorizontal },
 ];
 
@@ -56,9 +58,9 @@ export function MobileNav() {
               key={item.title}
               href={item.url}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 px-2 py-2 text-xs transition-colors",
+                "flex flex-1 flex-col items-center justify-center gap-1 px-2 py-2 text-xs transition-colors rounded-full mx-1",
                 isActive
-                  ? "text-primary"
+                  ? "text-primary bg-primary/15"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >

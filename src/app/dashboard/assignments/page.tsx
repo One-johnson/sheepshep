@@ -1529,14 +1529,16 @@ export default function AssignmentsPage() {
                     <span className="hidden sm:inline">Export All PDF</span>
                     <span className="sm:hidden">Export PDF</span>
                   </Button>
-                  <Button 
-                    onClick={() => setTaskAssignmentDialogOpen(true)}
-                    size="sm"
-                    className="w-full sm:w-auto"
-                  >
-                    <Heart className="mr-2 h-4 w-4" />
-                    Create Task
-                  </Button>
+                  {!isShepherd && (
+                    <Button 
+                      onClick={() => setTaskAssignmentDialogOpen(true)}
+                      size="sm"
+                      className="w-full sm:w-auto"
+                    >
+                      <Heart className="mr-2 h-4 w-4" />
+                      Create Task
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>

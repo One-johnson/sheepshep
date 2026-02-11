@@ -48,6 +48,10 @@ function getRoleBadgeClassName(role: string): string {
   switch (role) {
     case "pastor":
       return "bg-blue-500 hover:bg-blue-600 text-white border-blue-500";
+    case "shepherd":
+      return "bg-green-500 hover:bg-green-600 text-white border-green-500";
+    case "admin":
+      return "bg-red-500 hover:bg-red-600 text-white border-red-500";
     default:
       return "";
   }
@@ -249,10 +253,12 @@ export function AppHeader() {
                       <User className="mr-2 h-4 w-4" />
                       Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </DropdownMenuItem>
+                    {currentUser.role === "admin" && (
+                      <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} variant="destructive">
                       <LogOut className="mr-2 h-4 w-4" />

@@ -134,37 +134,37 @@ export default function DashboardPage() {
       {/* Shepherd Quick Actions (mobile-first) */}
       {isShepherd && !isLoading && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
-          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0 border-emerald-500/40 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300 dark:hover:bg-emerald-500/25">
             <Link href="/dashboard/attendance">
               <CalendarCheck className="h-5 w-5 shrink-0" />
               <span className="text-xs font-medium">Mark Attendance</span>
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0 border-blue-500/40 bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 dark:text-blue-300 dark:hover:bg-blue-500/25">
             <Link href="/dashboard/members">
               <UserCheck className="h-5 w-5 shrink-0" />
               <span className="text-xs font-medium">My Members</span>
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0 border-amber-500/40 bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-300 dark:hover:bg-amber-500/25">
             <Link href="/dashboard/assignments">
               <ClipboardList className="h-5 w-5 shrink-0" />
               <span className="text-xs font-medium">Assignments</span>
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0 border-sky-500/40 bg-sky-500/15 text-sky-700 hover:bg-sky-500/25 dark:text-sky-300 dark:hover:bg-sky-500/25">
             <Link href="/dashboard/reports">
               <FileText className="h-5 w-5 shrink-0" />
               <span className="text-xs font-medium">Reports</span>
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0 border-rose-500/40 bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 dark:text-rose-300 dark:hover:bg-rose-500/25">
             <Link href="/dashboard/prayer-requests">
               <Heart className="h-5 w-5 shrink-0" />
               <span className="text-xs font-medium">Prayer</span>
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0">
+          <Button asChild variant="outline" className="h-auto py-3 sm:py-4 flex-col gap-1 min-w-0 border-violet-500/40 bg-violet-500/15 text-violet-700 hover:bg-violet-500/25 dark:text-violet-300 dark:hover:bg-violet-500/25">
             <Link href="/dashboard/groups">
               <Users className="h-5 w-5 shrink-0" />
               <span className="text-xs font-medium">My Groups</span>
@@ -187,7 +187,7 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">My Members</CardTitle>
-                <UserCog className="h-4 w-4 text-muted-foreground" />
+                <UserCog className={`h-4 w-4 ${isShepherd ? "text-blue-500" : "text-muted-foreground"}`} />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
@@ -202,7 +202,7 @@ export default function DashboardPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Assignments</CardTitle>
-                    <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                    <ClipboardList className="h-4 w-4 text-amber-500" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{stats?.pendingAssignments ?? 0}</div>
@@ -214,7 +214,7 @@ export default function DashboardPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Awaiting Approval</CardTitle>
-                    <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+                    <CalendarCheck className="h-4 w-4 text-emerald-500" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{stats?.pendingAttendance ?? 0}</div>
@@ -226,7 +226,7 @@ export default function DashboardPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">At-Risk</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    <AlertTriangle className="h-4 w-4 text-rose-500" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{stats?.atRiskMembers ?? 0}</div>
@@ -283,7 +283,7 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Notifications</CardTitle>
-                  <Bell className="h-4 w-4 text-muted-foreground" />
+                  <Bell className="h-4 w-4 text-violet-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>

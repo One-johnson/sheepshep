@@ -917,7 +917,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Members</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalMembers}</div>
@@ -926,7 +926,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">New Converts</CardTitle>
-              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              <Sparkles className="h-4 w-4 text-violet-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.new_convert}</div>
@@ -935,7 +935,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">First Timers</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Clock className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.first_timer}</div>
@@ -944,7 +944,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Established</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              <CheckCircle className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.established}</div>
@@ -953,7 +953,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Visitors</CardTitle>
-              <UserCheck className="h-4 w-4 text-muted-foreground" />
+              <UserCheck className="h-4 w-4 text-sky-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.visitor}</div>
@@ -962,7 +962,7 @@ export default function MembersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Inactive</CardTitle>
-              <UserX className="h-4 w-4 text-muted-foreground" />
+              <UserX className="h-4 w-4 text-rose-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.statusCounts.inactive}</div>
