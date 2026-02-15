@@ -24,6 +24,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Image from "next/image";
+import Link from "next/link";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -130,12 +132,16 @@ export function AppHeader() {
         {/* Sidebar Trigger */}
         <SidebarTrigger className="-ml-1" />
 
-        {/* App Name */}
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">
-            Sheep<span className="text-primary">Shep</span>
-          </h1>
-        </div>
+        {/* Logo */}
+        <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
+          <Image
+            src="/logo.png"
+            alt="SheepShep"
+            width={100}
+            height={28}
+            className="h-7 w-auto object-contain"
+          />
+        </Link>
 
         {/* Global Search */}
         <div className="flex-1 max-w-md">

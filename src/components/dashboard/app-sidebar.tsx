@@ -13,20 +13,25 @@ import {
   Heart,
   BarChart3,
   Calendar,
+  HelpCircle,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 interface MenuItem {
@@ -103,6 +108,12 @@ const allMenuItems: MenuItem[] = [
     roles: ["admin", "pastor"], // Admin and Pastor
   },
   {
+    title: "Support",
+    url: "/dashboard/support",
+    icon: HelpCircle,
+    roles: ["admin"], // Admin only
+  },
+  {
     title: "Settings",
     url: "/dashboard/settings",
     icon: Settings,
@@ -139,6 +150,23 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 overflow-hidden rounded-md p-2 outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2"
+        >
+          <Image
+            src="/logo.png"
+            alt="SheepShep"
+            width={44}
+            height={44}
+            className="size-11 shrink-0 object-contain group-data-[collapsible=icon]:size-8"
+          />
+          <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">
+            SheepShep
+          </span>
+        </Link>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
@@ -166,6 +194,15 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator />
+      <SidebarFooter>
+        <p className="text-xs text-muted-foreground truncate group-data-[collapsible=icon]:hidden" title="FlowRiver Technologies">
+          FlowRiver Technologies
+        </p>
+        <p className="text-[10px] text-muted-foreground/80 truncate group-data-[collapsible=icon]:hidden">
+          SheepShep
+        </p>
+      </SidebarFooter>
     </Sidebar>
   );
 }

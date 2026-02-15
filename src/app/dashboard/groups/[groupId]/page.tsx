@@ -113,8 +113,9 @@ export default function GroupDetailPage() {
   );
 
   const membersWithoutAttendance = React.useMemo(() => {
-    if (!existingAttendance || !members) return members.filter(Boolean);
-    return members.filter((m) => m && !existingAttendance[m._id]) as NonNullable<(typeof members)[number]>[];
+    const defined = members.filter((m): m is NonNullable<typeof m> => m != null);
+    if (!existingAttendance || !members) return defined;
+    return defined.filter((m) => !existingAttendance[m._id]);
   }, [members, existingAttendance]);
 
   React.useEffect(() => {
