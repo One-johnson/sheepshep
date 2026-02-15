@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Heart } from "lucide-react";
 import Link from "next/link";
 
@@ -10,9 +11,15 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-50">
-              Sheep<span className="text-primary">Shep</span>
-            </h3>
+            <Link href="/" className="inline-block">
+              <Image
+                src="/logo.png"
+                alt="SheepShep"
+                width={200}
+                height={200}
+                className="h-20 w-auto object-contain"
+              />
+            </Link>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Leading and caring for God&apos;s flock with comprehensive church management.
             </p>

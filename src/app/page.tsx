@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { HeroCarousel } from "@/components/landing/hero-carousel";
 import { Features } from "@/components/landing/features";
@@ -15,11 +16,16 @@ export default function Home() {
       {/* Header with Theme Toggle */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-              Sheep<span className="text-primary">Shep</span>
-            </h1>
-          </div>
+          <a href="/" className="flex items-center gap-2">
+            <Image
+              src="/logo.png"
+              alt="SheepShep"
+              width={200}
+              height={200}
+              className="h-16 w-auto object-contain"
+              priority
+            />
+          </a>
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <div className="flex items-center gap-2">

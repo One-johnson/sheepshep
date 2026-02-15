@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexProvider } from "@/lib/convex-provider";
@@ -15,9 +15,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_NAME = "SheepShep";
+const APP_DESCRIPTION = "Leading and caring for God's flock";
+
 export const metadata: Metadata = {
   title: "SheepShep - Church Management System",
-  description: "Leading and caring for God's flock",
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: APP_NAME,
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({
