@@ -181,7 +181,6 @@ export default function AssignmentsPage() {
             selectedPastorFilter !== "all"
               ? (selectedPastorFilter as Id<"users">)
               : undefined,
-          zone: selectedZoneFilter !== "all" ? selectedZoneFilter : undefined,
           unassignedOnly: showUnassignedOnly,
         }
       : "skip"
@@ -791,15 +790,6 @@ export default function AssignmentsPage() {
               <div className="text-xl sm:text-2xl font-bold">{stats.unassignedShepherds}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Total Zones</CardTitle>
-              <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold">{stats.totalZones}</div>
-            </CardContent>
-          </Card>
         </div>
       ) : null
       )}
@@ -871,15 +861,6 @@ export default function AssignmentsPage() {
                           <div>
                             <CardTitle className="text-base sm:text-lg">{item.pastor.name}</CardTitle>
                             <CardDescription className="text-xs sm:text-sm">{item.pastor.email}</CardDescription>
-                            {item.pastor.supervisedZones.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {item.pastor.supervisedZones.map((zone) => (
-                                  <Badge key={zone} variant="outline" className="text-xs">
-                                    {zone}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
                           </div>
                           <Badge className="w-fit">{item.shepherds.length} Shepherds</Badge>
                         </div>
@@ -897,11 +878,6 @@ export default function AssignmentsPage() {
                                   <div className="text-xs sm:text-sm text-muted-foreground truncate">
                                     {shepherd.email}
                                   </div>
-                                  {shepherd.assignedZone && (
-                                    <Badge variant="secondary" className="mt-1 text-xs">
-                                      {shepherd.assignedZone}
-                                    </Badge>
-                                  )}
                                 </div>
                                 <Button
                                   variant="ghost"
@@ -942,11 +918,6 @@ export default function AssignmentsPage() {
                                 <div className="text-xs sm:text-sm text-muted-foreground truncate">
                                   {shepherd.email}
                                 </div>
-                                {shepherd.assignedZone && (
-                                  <Badge variant="secondary" className="mt-1 text-xs">
-                                    {shepherd.assignedZone}
-                                  </Badge>
-                                )}
                               </div>
                               <Button
                                 variant="ghost"
@@ -1102,11 +1073,6 @@ export default function AssignmentsPage() {
                               {shepherd.email}
                             </div>
                             <div className="flex flex-wrap gap-1 sm:gap-2 mt-1">
-                              {shepherd.assignedZone && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {shepherd.assignedZone}
-                                </Badge>
-                              )}
                               {shepherd.overseerName ? (
                                 <Badge className="text-xs">
                                   Overseen by: {shepherd.overseerName}
@@ -1178,33 +1144,9 @@ export default function AssignmentsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {stats?.zoneStats && stats.zoneStats.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {stats.zoneStats.map((zoneStat) => (
-                    <Card key={zoneStat.zone}>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{zoneStat.zone}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">Shepherds:</span>
-                            <span className="font-medium">{zoneStat.shepherdCount}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">Pastors:</span>
-                            <span className="font-medium">{zoneStat.pastorCount}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No zones found
-                </div>
-              )}
+              <div className="text-center py-8 text-muted-foreground">
+                Zone statistics have been replaced by regions and bacentas. Use the Regions page to manage structure.
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
