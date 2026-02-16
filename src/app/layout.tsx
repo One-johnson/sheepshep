@@ -4,6 +4,7 @@ import "./globals.css";
 import { ConvexProvider } from "@/lib/convex-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { InstallPrompt, OfflineIndicator, SwUpdatePrompt } from "@/components/pwa";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,6 +24,10 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icons/icon-192x192.png",
+    apple: "/icons/icon-192x192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -54,8 +59,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ConvexProvider>
+            <OfflineIndicator />
             {children}
             <Toaster />
+            <InstallPrompt />
+            <SwUpdatePrompt />
           </ConvexProvider>
         </ThemeProvider>
       </body>
