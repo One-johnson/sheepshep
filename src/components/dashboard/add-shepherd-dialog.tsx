@@ -40,6 +40,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const shepherdSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -52,7 +53,6 @@ const shepherdSchema = z.object({
   dateOfBirth: z.string().optional(),
   commissioningDate: z.string().optional(),
   occupation: z.string().optional(),
-  assignedZone: z.string().optional(),
   status: z.enum(["active", "on_leave", "inactive"]).optional(),
   overseerId: z.string().optional(),
   educationalBackground: z.string().optional(),
@@ -81,7 +81,18 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
     api.userAssignments.getPastors,
     token ? { token } : "skip"
   );
+  const regions = useQuery(
+    api.regions.listRegionsForSelect,
+    token ? { token } : "skip"
+  );
+  const [selectedRegionId, setSelectedRegionId] = React.useState<Id<"regions"> | null>(null);
+  const bacentasInRegion = useQuery(
+    api.regions.listBacentasByRegionForSelect,
+    token && selectedRegionId ? { token, regionId: selectedRegionId } : "skip"
+  );
+  const setShepherdBacentas = useMutation(api.regions.setShepherdBacentas);
 
+  const [selectedBacentaIds, setSelectedBacentaIds] = React.useState<Id<"bacentas">[]>([]);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [csvFile, setCsvFile] = React.useState<File | null>(null);
   const [csvError, setCsvError] = React.useState<string | null>(null);
@@ -102,7 +113,6 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       dateOfBirth: "",
       commissioningDate: "",
       occupation: "",
-      assignedZone: "",
       status: "active",
       overseerId: "none",
       educationalBackground: "",
@@ -170,7 +180,6 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       "dateOfBirth",
       "commissioningDate",
       "occupation",
-      "assignedZone",
       "status",
       "overseerId",
       "educationalBackground",
@@ -192,7 +201,6 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       "1990-01-01",
       "2020-06-15",
       "Teacher",
-      "Zone A",
       "active",
       "",
       "Bachelor of Science",
@@ -250,8 +258,6 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       commissioningdate: "commissioningDate",
       commissioning_date: "commissioningDate",
       occupation: "occupation",
-      assignedzone: "assignedZone",
-      assigned_zone: "assignedZone",
       status: "status",
       overseerid: "overseerId",
       overseer_id: "overseerId",
@@ -414,11 +420,16 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
         }
       }
 
-      await register({ token, ...submitData });
+      const result = await register({ token, ...submitData });
+      if (result?.userId && selectedBacentaIds.length > 0) {
+        await setShepherdBacentas({ token, shepherdId: result.userId, bacentaIds: selectedBacentaIds });
+      }
       toast.success("Shepherd added successfully");
       form.reset();
       setPhotoFile(null);
       setPhotoPreview(null);
+      setSelectedRegionId(null);
+      setSelectedBacentaIds([]);
       onOpenChange(false);
     } catch (error: any) {
       toast.error(error.message || "Failed to add shepherd");
@@ -664,20 +675,6 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
 
                     <FormField
                       control={form.control}
-                      name="assignedZone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Assigned Zone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Zone A" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
                       name="status"
                       render={({ field }) => (
                         <FormItem>
@@ -724,6 +721,63 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
                         </FormItem>
                       )}
                     />
+
+                    <div className="md:col-span-2 space-y-2">
+                      <FormLabel>Region</FormLabel>
+                      <Select
+                        value={selectedRegionId ?? "none"}
+                        onValueChange={(v) => {
+                          setSelectedRegionId(v === "none" ? null : (v as Id<"regions">));
+                          setSelectedBacentaIds([]);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select region" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {regions?.map((r) => (
+                            <SelectItem key={r._id} value={r._id}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Select a region to choose bacentas for this shepherd. A shepherd can have multiple bacentas.
+                      </p>
+                    </div>
+
+                    {selectedRegionId && (
+                      <div className="md:col-span-2 space-y-2">
+                        <FormLabel>Bacentas</FormLabel>
+                        <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
+                          {bacentasInRegion?.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No bacentas in this region.</p>
+                          ) : (
+                            bacentasInRegion?.map((b) => (
+                              <div key={b._id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`bacenta-${b._id}`}
+                                  checked={selectedBacentaIds.includes(b._id)}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedBacentaIds((prev) =>
+                                      checked ? [...prev, b._id] : prev.filter((id) => id !== b._id)
+                                    );
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`bacenta-${b._id}`}
+                                  className="text-sm font-medium leading-none cursor-pointer"
+                                >
+                                  {b.name}
+                                </label>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -882,6 +936,8 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
                       form.reset();
                       setPhotoFile(null);
                       setPhotoPreview(null);
+                      setSelectedRegionId(null);
+                      setSelectedBacentaIds([]);
                     }}
                     disabled={isSubmitting || isUploadingPhoto}
                   >
