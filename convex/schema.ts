@@ -25,12 +25,10 @@ export default defineSchema({
     qualification: v.optional(v.string()), // Highest Qualification/Seminary (e.g., "Bachelor of Theology", "MDiv")
     yearsInMinistry: v.optional(v.number()), // Years in Ministry
     ministryFocus: v.optional(v.array(v.string())), // Main Ministry Focus (multi-select: "Youth", "Couples", "Evangelism", "Teaching", etc.)
-    supervisedZones: v.optional(v.array(v.string())), // Supervised Zones/Districts (multi-select or text)
     notes: v.optional(v.string()), // Notes
     // Shepherd-specific fields
     commissioningDate: v.optional(v.number()), // Join Date / Commissioning Date (Unix timestamp)
     occupation: v.optional(v.string()), // Occupation / Ministry Role (e.g., "Teacher", "Business Owner", "Worship Leader")
-    assignedZone: v.optional(v.string()), // Assigned Zone / Area
     educationalBackground: v.optional(v.string()), // Educational Background / Highest Education Level
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
@@ -59,8 +57,7 @@ export default defineSchema({
     .index("by_overseer", ["overseerId"])
     .index("by_ordination_date", ["ordinationDate"])
     .index("by_commissioning_date", ["commissioningDate"])
-    .index("by_status", ["status"])
-    .index("by_assigned_zone", ["assignedZone"]),
+    .index("by_status", ["status"]),
 
   // Members table - church members managed by shepherds
   members: defineTable({
@@ -125,6 +122,7 @@ export default defineSchema({
     ),
     // Relationships
     shepherdId: v.id("users"), // Shepherd responsible for this member
+    bacentaId: v.optional(v.id("bacentas")), // Bacenta this member belongs to (temporarily optional - will be required after cleanup)
     // Metadata
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -132,6 +130,7 @@ export default defineSchema({
     isActive: v.boolean(),
   })
     .index("by_shepherd", ["shepherdId"])
+    .index("by_bacenta", ["bacentaId"])
     .index("by_email", ["email"])
     .index("by_custom_id", ["customId"])
     .index("by_phone", ["phone"])
@@ -367,7 +366,6 @@ export default defineSchema({
     // Shepherd-specific fields
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
-    assignedZone: v.optional(v.string()),
     homeAddress: v.optional(v.string()),
     notes: v.optional(v.string()),
     // Approval workflow

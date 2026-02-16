@@ -63,6 +63,7 @@ const memberSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["new_convert", "first_timer", "established", "visitor", "inactive"]).optional(),
   shepherdId: z.string().optional(),
+  bacentaId: z.string().optional(),
   // Marital information
   maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
   weddingAnniversaryDate: z.string().optional(),
@@ -100,6 +101,7 @@ interface EditMemberDialogProps {
     notes?: string;
     status?: "new_convert" | "first_timer" | "established" | "visitor" | "inactive";
     shepherdId: Id<"users">;
+    bacentaId?: Id<"bacentas">;
     maritalStatus?: "single" | "married" | "divorced" | "widowed";
     weddingAnniversaryDate?: number;
     spouseName?: string;
@@ -126,6 +128,35 @@ export function EditMemberDialog({
     api.attendance.getShepherds,
     token ? { token } : "skip"
   );
+  const regions = useQuery(
+    api.regions.listRegionsForSelect,
+    token ? { token } : "skip"
+  );
+  // Get all bacentas to find the member's current bacenta and its region
+  const allBacentas = useQuery(
+    api.regions.listBacentasForSelect,
+    token ? { token } : "skip"
+  );
+  const [selectedRegionId, setSelectedRegionId] = React.useState<Id<"regions"> | null>(null);
+  const bacentasInRegion = useQuery(
+    api.regions.listBacentasByRegionForSelect,
+    token && selectedRegionId ? { token, regionId: selectedRegionId } : "skip"
+  );
+
+  // Set initial region when member bacenta is loaded
+  React.useEffect(() => {
+    if (allBacentas && member.bacentaId && !selectedRegionId && regions) {
+      const currentBacenta = allBacentas.find((b) => b._id === member.bacentaId);
+      if (currentBacenta) {
+        // Find which region this bacenta belongs to by checking regionsWithDetails
+        // We'll use a simpler approach: query regions and check their bacentas
+        // For now, we'll need to load regions with details or check each region's bacentas
+        // Since we have allBacentas, we can't directly get regionId from the bacenta object
+        // We'll need to query regions with details or let user select manually
+        // For now, leave it unset and let user select
+      }
+    }
+  }, [allBacentas, member.bacentaId, regions, selectedRegionId]);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
@@ -163,6 +194,7 @@ export function EditMemberDialog({
       notes: member.notes || "",
       status: member.status || "established",
       shepherdId: member.shepherdId || "",
+      bacentaId: member.bacentaId || "",
       maritalStatus: member.maritalStatus,
       weddingAnniversaryDate: member.weddingAnniversaryDate
         ? new Date(member.weddingAnniversaryDate).toISOString().split("T")[0]
@@ -205,6 +237,7 @@ export function EditMemberDialog({
       notes: member.notes || "",
       status: member.status || "established",
       shepherdId: member.shepherdId || "",
+      bacentaId: member.bacentaId || "",
       maritalStatus: member.maritalStatus,
       weddingAnniversaryDate: member.weddingAnniversaryDate
         ? new Date(member.weddingAnniversaryDate).toISOString().split("T")[0]
@@ -322,6 +355,7 @@ export function EditMemberDialog({
         notes: data.notes || undefined,
         status: data.status || undefined,
         shepherdId: data.shepherdId ? (data.shepherdId as Id<"users">) : undefined,
+        bacentaId: data.bacentaId ? (data.bacentaId as Id<"bacentas">) : undefined,
         maritalStatus: data.maritalStatus || undefined,
         weddingAnniversaryDate,
         spouseName: data.spouseName || undefined,
@@ -509,6 +543,57 @@ export function EditMemberDialog({
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="bacentaId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bacenta</FormLabel>
+                      <div className="space-y-2">
+                        <Select
+                          value={selectedRegionId || ""}
+                          onValueChange={(value) => {
+                            setSelectedRegionId(value as Id<"regions">);
+                            form.setValue("bacentaId", ""); // Reset bacenta when region changes
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select region first" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {regions?.map((region) => (
+                              <SelectItem key={region._id} value={region._id}>
+                                {region.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedRegionId && (
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select bacenta" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {bacentasInRegion?.map((bacenta) => (
+                                <SelectItem key={bacenta._id} value={bacenta._id}>
+                                  {bacenta.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

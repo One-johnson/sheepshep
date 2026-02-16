@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +40,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Id } from "../../../convex/_generated/dataModel";
+import { convertDateToTimestamp, getUserFriendlyError, SUCCESS_SCRIPTURES, ERROR_SCRIPTURES } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 const pastorSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -55,7 +58,8 @@ const pastorSchema = z.object({
   qualification: z.string().optional(),
   yearsInMinistry: z.number().min(0).optional(),
   ministryFocus: z.array(z.string()).optional(),
-  supervisedZones: z.array(z.string()).optional(),
+  regionId: z.string().optional(),
+  status: z.enum(["active", "on_leave", "inactive"]).optional(),
   notes: z.string().optional(),
   // Marital information
   maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
@@ -74,9 +78,13 @@ interface AddPastorDialogProps {
 
 export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): React.JSX.Element {
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  const register = useMutation(api.auth.register);
+  const createPastor = useMutation(api.auth.createPastor);
   const bulkAdd = useMutation(api.authUsers.bulkAdd);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+  const regions = useQuery(
+    api.regions.listRegionsForSelect,
+    token ? { token } : "skip"
+  );
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [csvFile, setCsvFile] = React.useState<File | null>(null);
@@ -101,7 +109,8 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       qualification: "",
       yearsInMinistry: undefined,
       ministryFocus: [],
-      supervisedZones: [],
+      regionId: "",
+      status: "active",
       notes: "",
       maritalStatus: undefined,
       weddingAnniversaryDate: "",
@@ -127,7 +136,8 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       "qualification",
       "yearsInMinistry",
       "ministryFocus",
-      "supervisedZones",
+      "regionId",
+      "status",
       "notes",
       "maritalStatus",
       "weddingAnniversaryDate",
@@ -150,7 +160,8 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       "Master of Divinity",
       "15",
       "Youth,Teaching",
-      "Zone A,Zone B",
+      "region-id-here",
+      "active",
       "Notes here",
       "married",
       "2000-06-15",
@@ -212,8 +223,9 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       years_in_ministry: "yearsInMinistry",
       ministryfocus: "ministryFocus",
       ministry_focus: "ministryFocus",
-      supervisedzones: "supervisedZones",
-      supervised_zones: "supervisedZones",
+      regionid: "regionId",
+      region_id: "regionId",
+      status: "status",
       notes: "notes",
       maritalstatus: "maritalStatus",
       marital_status: "maritalStatus",
@@ -275,7 +287,7 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
                   if (!isNaN(date.getTime())) {
                     row[camelCaseKey] = date.getTime();
                   }
-                } else if (camelCaseKey === "ministryFocus" || camelCaseKey === "supervisedZones") {
+                } else if (camelCaseKey === "ministryFocus") {
                   row[camelCaseKey] = value.split(",").map((v) => v.trim()).filter(Boolean);
                 } else if (camelCaseKey === "childrenCount") {
                   row.childrenCount = parseInt(value) || 0;
@@ -364,10 +376,23 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
         headers: { "Content-Type": photoFile.type },
         body: photoFile,
       });
+      
+      if (!result.ok) {
+        throw new Error(`Upload failed with status ${result.status}`);
+      }
+      
       const { storageId } = await result.json();
+      if (!storageId) {
+        throw new Error("No storage ID returned from upload");
+      }
+      
       return storageId as Id<"_storage">;
     } catch (error: any) {
-      toast.error("Failed to upload photo");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to upload photo");
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.upload,
+        duration: 6000,
+      });
       return null;
     } finally {
       setIsUploadingPhoto(false);
@@ -380,47 +405,62 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
 
     setIsSubmitting(true);
     try {
-      const submitData: any = {
-        ...data,
-        role: "pastor" as const,
-      };
-
-      // Convert date strings to timestamps
-      if (data.dateOfBirth) {
-        const date = new Date(data.dateOfBirth);
-        if (!isNaN(date.getTime())) {
-          submitData.dateOfBirth = date.getTime();
-        }
-      }
-      if (data.ordinationDate) {
-        const date = new Date(data.ordinationDate);
-        if (!isNaN(date.getTime())) {
-          submitData.ordinationDate = date.getTime();
-        }
-      }
-      if (data.weddingAnniversaryDate) {
-        const date = new Date(data.weddingAnniversaryDate);
-        if (!isNaN(date.getTime())) {
-          submitData.weddingAnniversaryDate = date.getTime();
-        }
-      }
-
       // Upload photo if selected
+      let profilePhotoId: Id<"_storage"> | undefined = undefined;
       if (photoFile) {
         const storageId = await uploadPhoto();
-        if (storageId) {
-          submitData.profilePhotoId = storageId;
+        if (!storageId) {
+          // Photo upload failed, but allow submission without photo
+          toast.warning("Photo upload failed. Continuing without photo.", {
+            description: ERROR_SCRIPTURES.upload,
+            duration: 5000,
+          });
+        } else {
+          profilePhotoId = storageId;
         }
       }
 
-      await register({ token, ...submitData });
-      toast.success("Pastor added successfully");
+      await createPastor({
+        token: token!,
+        email: data.email,
+        password: data.password,
+        name: data.name,
+        phone: data.phone || undefined,
+        whatsappNumber: data.whatsappNumber || undefined,
+        preferredName: data.preferredName || undefined,
+        gender: data.gender,
+        dateOfBirth: convertDateToTimestamp(data.dateOfBirth),
+        ordinationDate: convertDateToTimestamp(data.ordinationDate),
+        homeAddress: data.homeAddress || undefined,
+        qualification: data.qualification || undefined,
+        yearsInMinistry: data.yearsInMinistry,
+        ministryFocus: data.ministryFocus,
+        regionId: data.regionId && data.regionId !== "none" ? (data.regionId as Id<"regions">) : undefined,
+        status: data.status || "active",
+        notes: data.notes || undefined,
+        profilePhotoId,
+        maritalStatus: data.maritalStatus,
+        weddingAnniversaryDate: convertDateToTimestamp(data.weddingAnniversaryDate),
+        spouseName: data.spouseName || undefined,
+        spouseOccupation: data.spouseOccupation || undefined,
+        childrenCount: data.childrenCount,
+      });
+      
+      toast.success("Pastor added successfully", {
+        description: SUCCESS_SCRIPTURES.pastorCreated,
+        duration: 6000,
+      });
+      
       form.reset();
       setPhotoFile(null);
       setPhotoPreview(null);
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message || "Failed to add pastor");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to add pastor");
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.validation,
+        duration: 6000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -690,6 +730,82 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
                         <FormControl>
                           <Input placeholder="123 Main St, City, State" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="regionId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Assign Region
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="ml-1 h-3 w-3 inline text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Select a region to assign this pastor to</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </FormLabel>
+                        <Select
+                          value={field.value || "none"}
+                          onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a region (optional)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No region</SelectItem>
+                            {regions?.map((region) => (
+                              <SelectItem key={region._id} value={region._id}>
+                                {region.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Status
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="ml-1 h-3 w-3 inline text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Current status of the pastor</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value || "active"}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="on_leave">On Leave</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

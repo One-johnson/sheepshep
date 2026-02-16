@@ -90,6 +90,7 @@ export const create = mutation({
     ),
     // Relationships
     shepherdId: v.id("users"),
+    bacentaId: v.id("bacentas"), // Required: member must belong to a bacenta
   },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
@@ -110,6 +111,24 @@ export const create = mutation({
     // If shepherd, ensure they're assigning to themselves or check permissions
     if (user.role === "shepherd" && args.shepherdId !== userId) {
       throw new Error("Unauthorized - shepherds can only assign members to themselves");
+    }
+
+    // Validate that the bacenta exists and the shepherd is assigned to it
+    const bacenta = await ctx.db.get(args.bacentaId);
+    if (!bacenta) {
+      throw new Error("Bacenta not found");
+    }
+
+    // Check if the shepherd is assigned to this bacenta
+    const shepherdBacentaLink = await ctx.db
+      .query("shepherdBacentas")
+      .withIndex("by_shepherd_bacenta", (q) =>
+        q.eq("shepherdId", args.shepherdId).eq("bacentaId", args.bacentaId)
+      )
+      .first();
+    
+    if (!shepherdBacentaLink) {
+      throw new Error("Shepherd is not assigned to this bacenta");
     }
 
     // Generate custom ID
@@ -145,6 +164,7 @@ export const create = mutation({
       notes: args.notes,
       status: args.status || "established",
       shepherdId: args.shepherdId,
+      bacentaId: args.bacentaId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       createdBy: userId,
@@ -358,6 +378,7 @@ export const update = mutation({
       )
     ),
     shepherdId: v.optional(v.id("users")),
+    bacentaId: v.optional(v.id("bacentas")),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -388,6 +409,35 @@ export const update = mutation({
     if (args.shepherdId !== undefined && args.shepherdId !== member.shepherdId) {
       if (user.role !== "admin") {
         throw new Error("Unauthorized - only admins can reassign members");
+      }
+    }
+
+    // If changing bacenta, validate the new bacenta and shepherd assignment
+    const currentBacentaId = (member as any).bacentaId;
+    if (args.bacentaId !== undefined && args.bacentaId !== currentBacentaId) {
+      const newBacenta = await ctx.db.get(args.bacentaId);
+      if (!newBacenta) {
+        throw new Error("Bacenta not found");
+      }
+
+      // If shepherd is also being changed, use the new shepherdId, otherwise use existing
+      const targetShepherdId = args.shepherdId !== undefined ? args.shepherdId : member.shepherdId;
+      
+      // Check if the shepherd is assigned to the new bacenta
+      const shepherdBacentaLink = await ctx.db
+        .query("shepherdBacentas")
+        .withIndex("by_shepherd_bacenta", (q) =>
+          q.eq("shepherdId", targetShepherdId).eq("bacentaId", args.bacentaId!)
+        )
+        .first();
+      
+      if (!shepherdBacentaLink) {
+        throw new Error("Shepherd is not assigned to this bacenta");
+      }
+
+      // Only admins can change bacenta
+      if (user.role !== "admin") {
+        throw new Error("Unauthorized - only admins can reassign members to different bacentas");
       }
     }
 
@@ -423,6 +473,7 @@ export const update = mutation({
     if (args.notes !== undefined) updates.notes = args.notes;
     if (args.status !== undefined) updates.status = args.status;
     if (args.shepherdId !== undefined) updates.shepherdId = args.shepherdId;
+    if (args.bacentaId !== undefined) updates.bacentaId = args.bacentaId;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
 
     await ctx.db.patch(args.memberId, updates);

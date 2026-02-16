@@ -100,7 +100,6 @@ export const approve = mutation({
       dateOfBirth: request.dateOfBirth,
       commissioningDate: request.commissioningDate,
       occupation: request.occupation,
-      assignedZone: request.assignedZone,
       homeAddress: request.homeAddress,
       notes: request.notes,
       status: "active",

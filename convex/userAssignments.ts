@@ -44,36 +44,11 @@ export const getStats = query({
       return { pastorId: pastor._id, pastorName: pastor.name, count };
     });
 
-    // Zone statistics
-    const allZones = new Set<string>();
-    shepherds.forEach((s) => {
-      if (s.assignedZone) allZones.add(s.assignedZone);
-    });
-    pastors.forEach((p) => {
-      if (p.supervisedZones) {
-        p.supervisedZones.forEach((z) => allZones.add(z));
-      }
-    });
-
-    const zoneStats = Array.from(allZones).map((zone) => {
-      const zoneShepherds = shepherds.filter((s) => s.assignedZone === zone);
-      const zonePastors = pastors.filter((p) => 
-        p.supervisedZones && p.supervisedZones.includes(zone)
-      );
-      return {
-        zone,
-        shepherdCount: zoneShepherds.length,
-        pastorCount: zonePastors.length,
-      };
-    });
-
     return {
       totalPastors: pastors.length,
       totalShepherds: shepherds.length,
       unassignedShepherds: unassignedShepherds.length,
       shepherdCounts,
-      totalZones: allZones.size,
-      zoneStats,
     };
   },
 });
@@ -115,13 +90,11 @@ export const getHierarchy = query({
           _id: pastor._id,
           name: pastor.name,
           email: pastor.email,
-          supervisedZones: pastor.supervisedZones || [],
         },
         shepherds: pastorShepherds.map((s) => ({
           _id: s._id,
           name: s.name,
           email: s.email,
-          assignedZone: s.assignedZone,
         })),
       };
     });
@@ -132,7 +105,6 @@ export const getHierarchy = query({
         _id: s._id,
         name: s.name,
         email: s.email,
-        assignedZone: s.assignedZone,
       }));
 
     return {
@@ -173,7 +145,6 @@ export const getPastors = query({
       _id: p._id,
       name: p.name,
       email: p.email,
-      supervisedZones: p.supervisedZones || [],
     }));
   },
 });
@@ -183,7 +154,6 @@ export const getShepherds = query({
   args: {
     token: v.string(),
     pastorId: v.optional(v.id("users")),
-    zone: v.optional(v.string()),
     unassignedOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -212,9 +182,6 @@ export const getShepherds = query({
     if (args.pastorId) {
       shepherds = shepherds.filter((s) => s.overseerId === args.pastorId);
     }
-    if (args.zone) {
-      shepherds = shepherds.filter((s) => s.assignedZone === args.zone);
-    }
     if (args.unassignedOnly) {
       shepherds = shepherds.filter((s) => !s.overseerId);
     }
@@ -236,7 +203,6 @@ export const getShepherds = query({
       _id: s._id,
       name: s.name,
       email: s.email,
-      assignedZone: s.assignedZone,
       overseerId: s.overseerId,
       overseerName: s.overseerId ? (overseerMap.get(s.overseerId) || null) : null,
     }));
@@ -457,32 +423,12 @@ export const assignZoneToShepherd = mutation({
       throw new Error("Invalid shepherd");
     }
 
-    const previousZone = shepherd.assignedZone;
-
-    await ctx.db.patch(args.shepherdId, {
-      assignedZone: args.zone,
-      updatedAt: Date.now(),
-    });
-
-    // Log zone assignment
-    await ctx.db.insert("auditLogs", {
-      userId: userId,
-      action: "assign_zone",
-      entityType: "users",
-      entityId: args.shepherdId,
-      details: JSON.stringify({
-        shepherdName: shepherd.name,
-        zone: args.zone,
-        previousZone: previousZone || null,
-      }),
-      createdAt: Date.now(),
-    });
-
-    return { success: true };
+    // Zone assignment removed - use regions/bacentas instead
+    throw new Error("Zone assignment is deprecated. Use regions and bacentas instead.");
   },
 });
 
-// Assign supervised zones to pastor
+// Assign supervised zones to pastor - DEPRECATED (use regions/bacentas instead)
 export const assignSupervisedZonesToPastor = mutation({
   args: {
     token: v.string(),
@@ -490,86 +436,18 @@ export const assignSupervisedZonesToPastor = mutation({
     zones: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.role !== "admin") {
-      throw new Error("Unauthorized - admin only");
-    }
-
-    const pastor = await ctx.db.get(args.pastorId);
-    if (!pastor || pastor.role !== "pastor") {
-      throw new Error("Invalid pastor");
-    }
-
-    const previousZones = pastor.supervisedZones || [];
-
-    await ctx.db.patch(args.pastorId, {
-      supervisedZones: args.zones,
-      updatedAt: Date.now(),
-    });
-
-    // Log zone assignment
-    await ctx.db.insert("auditLogs", {
-      userId: userId,
-      action: "assign_supervised_zones",
-      entityType: "users",
-      entityId: args.pastorId,
-      details: JSON.stringify({
-        pastorName: pastor.name,
-        zones: args.zones,
-        previousZones: previousZones,
-      }),
-      createdAt: Date.now(),
-    });
-
-    return { success: true };
+    // Zone assignment removed - use regions/bacentas instead
+    throw new Error("Zone assignment is deprecated. Use regions and bacentas instead.");
   },
 });
 
-// Get all unique zones (admin and pastor)
+// Get all unique zones - DEPRECATED (use regions/bacentas instead)
 export const getAllZones = query({
   args: {
     token: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await verifyToken(ctx, args.token);
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
-
-    const user = await ctx.db.get(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Allow admins and pastors
-    if (user.role !== "admin" && user.role !== "pastor") {
-      throw new Error("Unauthorized - admin or pastor access required");
-    }
-
-    let allUsers = await ctx.db.query("users").collect();
-    
-    // Filter by role permissions
-    if (user.role === "pastor") {
-      // Pastors only see zones from their shepherds and their own supervised zones
-      const pastorShepherds = allUsers.filter((u) => u.role === "shepherd" && u.overseerId === userId);
-      const pastor = allUsers.find((u) => u._id === userId);
-      allUsers = [...pastorShepherds, ...(pastor ? [pastor] : [])];
-    }
-    
-    const zones = new Set<string>();
-
-    allUsers.forEach((u) => {
-      if (u.assignedZone) zones.add(u.assignedZone);
-      if (u.supervisedZones) {
-        u.supervisedZones.forEach((z) => zones.add(z));
-      }
-    });
-
-    return Array.from(zones).sort();
+    // Zones removed - use regions/bacentas instead
+    return [];
   },
 });
