@@ -40,6 +40,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { convertDateToTimestamp, getUserFriendlyError, SUCCESS_SCRIPTURES, ERROR_SCRIPTURES } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 const memberSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -64,6 +67,7 @@ const memberSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["new_convert", "first_timer", "established", "visitor", "inactive"]).optional(),
   shepherdId: z.string().min(1, "Shepherd is required"),
+  bacentaId: z.string().min(1, "Bacenta is required"),
   // Marital information
   maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
   weddingAnniversaryDate: z.string().optional(),
@@ -85,6 +89,19 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);
   const shepherds = useQuery(
     api.attendance.getShepherds,
+    token ? { token } : "skip"
+  );
+  const regions = useQuery(
+    api.regions.listRegionsForSelect,
+    token ? { token } : "skip"
+  );
+  const [selectedRegionId, setSelectedRegionId] = React.useState<Id<"regions"> | null>(null);
+  const bacentasInRegion = useQuery(
+    api.regions.listBacentasByRegionForSelect,
+    token && selectedRegionId ? { token, regionId: selectedRegionId } : "skip"
+  );
+  const allBacentas = useQuery(
+    api.regions.listBacentasForSelect,
     token ? { token } : "skip"
   );
 
@@ -120,6 +137,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       notes: "",
       status: "established",
       shepherdId: "",
+      bacentaId: "",
       maritalStatus: undefined,
       weddingAnniversaryDate: "",
       spouseName: "",
@@ -164,15 +182,32 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
     setIsUploadingPhoto(true);
     try {
       const uploadUrl = await generateUploadUrl({ token });
+      
+      if (!uploadUrl) {
+        throw new Error("Failed to get upload URL");
+      }
       const result = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": photoFile.type },
         body: photoFile,
       });
+      
+      if (!result.ok) {
+        throw new Error(`Upload failed with status ${result.status}`);
+      }
+      
       const { storageId } = await result.json();
+      if (!storageId) {
+        throw new Error("No storage ID returned from upload");
+      }
+      
       return storageId as Id<"_storage">;
     } catch (error: any) {
-      toast.error("Failed to upload photo");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to upload photo");
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.upload,
+        duration: 6000,
+      });
       return null;
     } finally {
       setIsUploadingPhoto(false);
@@ -203,6 +238,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       "emergencyContactPhone",
       "status",
       "shepherdId",
+      "bacentaId",
       "maritalStatus",
       "weddingAnniversaryDate",
       "spouseName",
@@ -230,6 +266,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       "Jane Doe",
       "+1234567891",
       "established",
+      "",
       "",
       "married",
       "2015-06-15",
@@ -399,6 +436,11 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
                   if (value && value !== "none" && value !== "") {
                     row.shepherdId = value;
                   }
+                } else if (camelCaseKey === "bacentaId") {
+                  // Store bacentaId as-is (will be resolved during import)
+                  if (value && value !== "none" && value !== "") {
+                    row.bacentaId = value;
+                  }
                 } else if (camelCaseKey === "childrenCount") {
                   const parsed = parseInt(value);
                   if (!isNaN(parsed)) {
@@ -420,6 +462,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
             if (!row.address) missingFields.push("address");
             if (!row.dateJoinedChurch) missingFields.push("dateJoinedChurch");
             if (!row.shepherdId) missingFields.push("shepherdId");
+            if (!row.bacentaId) missingFields.push("bacentaId");
 
             if (missingFields.length === 0) {
               data.push(row);
@@ -456,7 +499,12 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       console.log("Available shepherds:", shepherds);
       
       if (members.length === 0) {
-        setCsvError("No valid members found in CSV file. Please check that all required fields (firstName, lastName, gender, dateOfBirth, phone, address, dateJoinedChurch, shepherdId) are present and valid. Check the browser console for details.");
+        const errorInfo = getUserFriendlyError("No valid members found in CSV file. Please check that all required fields are present and valid.");
+        setCsvError(errorInfo.message);
+        toast.error(errorInfo.message, {
+          description: errorInfo.scripture || ERROR_SCRIPTURES.validation,
+          duration: 8000,
+        });
         setIsSubmitting(false);
         return;
       }
@@ -497,10 +545,36 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
 
           const shepherdId = shepherd._id;
 
+          // Resolve bacentaId if it's a name instead of an ID
+          let bacentaId: Id<"bacentas"> | undefined = undefined;
+          if (memberData.bacentaId) {
+            if (!allBacentas || allBacentas.length === 0) {
+              throw new Error("Bacentas not loaded. Please wait a moment and try again.");
+            }
+
+            const providedBacentaId = memberData.bacentaId;
+            const bacenta = allBacentas.find((b) => {
+              const providedStr = String(providedBacentaId).toLowerCase().trim();
+              const bacentaName = b.name.toLowerCase().trim();
+              const bacentaIdStr = b._id.toLowerCase();
+              
+              return bacentaName === providedStr || bacentaIdStr === providedStr || b._id === providedBacentaId;
+            });
+
+            if (!bacenta) {
+              throw new Error(`Bacenta "${providedBacentaId}" not found. Available bacentas: ${allBacentas.map(b => b.name).join(", ")}`);
+            }
+
+            bacentaId = bacenta._id;
+          } else {
+            throw new Error("Bacenta ID is required");
+          }
+
           await createMember({
             token: token!,
             ...memberData,
             shepherdId: shepherdId,
+            bacentaId: bacentaId,
           });
           successCount++;
         } catch (error: any) {
@@ -516,7 +590,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
         console.error("CSV Import Errors:", errors);
       } else {
         toast.success(`Successfully created ${successCount} members`, {
-          description: "2 Corinthians 6:17 - 'Therefore, \"Come out from them and be separate, says the Lord. Touch no unclean thing, and I will receive you.\"'",
+          description: SUCCESS_SCRIPTURES.csvImported,
           duration: 6000,
         });
       }
@@ -544,18 +618,26 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       let profilePhotoId: Id<"_storage"> | undefined = undefined;
       if (photoFile) {
         const uploadedId = await uploadPhoto();
-        if (uploadedId) {
+        if (!uploadedId) {
+          // Photo upload failed, but allow submission without photo
+          toast.warning("Photo upload failed. Continuing without photo.", {
+            description: ERROR_SCRIPTURES.upload,
+            duration: 5000,
+          });
+        } else {
           profilePhotoId = uploadedId;
         }
       }
 
-      // Convert date strings to timestamps
-      const dateOfBirth = new Date(data.dateOfBirth).getTime();
-      const dateJoinedChurch = new Date(data.dateJoinedChurch).getTime();
-      const baptismDate = data.baptismDate ? new Date(data.baptismDate).getTime() : undefined;
-      const weddingAnniversaryDate = data.weddingAnniversaryDate
-        ? new Date(data.weddingAnniversaryDate).getTime()
-        : undefined;
+      // Convert date strings to timestamps using utility
+      const dateOfBirth = convertDateToTimestamp(data.dateOfBirth);
+      const dateJoinedChurch = convertDateToTimestamp(data.dateJoinedChurch);
+      const baptismDate = convertDateToTimestamp(data.baptismDate);
+      const weddingAnniversaryDate = convertDateToTimestamp(data.weddingAnniversaryDate);
+
+      if (!dateOfBirth || !dateJoinedChurch) {
+        throw new Error("Date of birth and date joined church are required");
+      }
 
       await createMember({
         token,
@@ -582,6 +664,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
         notes: data.notes || undefined,
         status: data.status || undefined,
         shepherdId: data.shepherdId as Id<"users">,
+        bacentaId: data.bacentaId as Id<"bacentas">,
         maritalStatus: data.maritalStatus || undefined,
         weddingAnniversaryDate,
         spouseName: data.spouseName || undefined,
@@ -589,7 +672,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       });
 
       toast.success("Member created successfully", {
-        description: "2 Corinthians 6:17 - 'Therefore, \"Come out from them and be separate, says the Lord. Touch no unclean thing, and I will receive you.\"'",
+        description: SUCCESS_SCRIPTURES.memberCreated,
         duration: 6000,
       });
       form.reset();
@@ -597,7 +680,11 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       setPhotoPreview(null);
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message || "Failed to create member");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to create member");
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.validation,
+        duration: 6000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -777,6 +864,57 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
                               ))}
                             </SelectContent>
                           </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="bacentaId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bacenta *</FormLabel>
+                          <div className="space-y-2">
+                            <Select
+                              value={selectedRegionId || ""}
+                              onValueChange={(value) => {
+                                setSelectedRegionId(value as Id<"regions">);
+                                form.setValue("bacentaId", ""); // Reset bacenta when region changes
+                              }}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select region first" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {regions?.map((region) => (
+                                  <SelectItem key={region._id} value={region._id}>
+                                    {region.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {selectedRegionId && (
+                              <Select
+                                onValueChange={field.onChange}
+                                value={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select bacenta" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {bacentasInRegion?.map((bacenta) => (
+                                    <SelectItem key={bacenta._id} value={bacenta._id}>
+                                      {bacenta.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}

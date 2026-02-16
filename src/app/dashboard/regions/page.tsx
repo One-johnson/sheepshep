@@ -60,6 +60,7 @@ const BADGE_COLORS = [
   { value: "green", label: "Green", class: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" },
   { value: "red", label: "Red", class: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30" },
   { value: "amber", label: "Amber", class: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+  { value: "orange", label: "Orange", class: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30" },
   { value: "violet", label: "Violet", class: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30" },
   { value: "slate", label: "Slate", class: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30" },
 ] as const;
@@ -97,6 +98,35 @@ function ShepherdAvatar({
   );
 }
 
+function MemberListItem({
+  member,
+  token,
+}: {
+  member: { _id: Id<"members">; preferredName?: string; firstName: string; lastName: string; profilePhotoId?: Id<"_storage"> };
+  token: string | null;
+}) {
+  const memberPhotoUrl = useQuery(
+    api.storage.getFileUrl,
+    token && member.profilePhotoId ? { token, storageId: member.profilePhotoId } : "skip"
+  );
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      <Avatar className="h-8 w-8">
+        {memberPhotoUrl ? (
+          <AvatarImage src={memberPhotoUrl} alt={`${member.preferredName || member.firstName} ${member.lastName}`} />
+        ) : null}
+        <AvatarFallback className="text-xs">
+          {((member.preferredName || member.firstName)?.[0] || "").toUpperCase()}
+          {(member.lastName?.[0] || "").toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <span className="text-muted-foreground">
+        {member.preferredName || member.firstName} {member.lastName}
+      </span>
+    </li>
+  );
+}
+
 export default function RegionsPage() {
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const regionsWithDetails = useQuery(
@@ -112,6 +142,7 @@ export default function RegionsPage() {
   const updateBacentaMut = useMutation(api.regions.updateBacenta);
   const deleteBacentaMut = useMutation(api.regions.deleteBacenta);
   const assignShepherdsToBacentaMut = useMutation(api.regions.assignShepherdsToBacenta);
+  const setBacentaShepherdsMut = useMutation(api.regions.setBacentaShepherds);
 
   const [addRegionOpen, setAddRegionOpen] = React.useState(false);
   const [newRegionName, setNewRegionName] = React.useState("");
@@ -137,7 +168,13 @@ export default function RegionsPage() {
     name: string;
     area: string;
     meetingDay: number | "";
+    shepherdIds: Id<"users">[];
   } | null>(null);
+  // Get shepherds for the bacenta being edited
+  const shepherdsForEditBacenta = useQuery(
+    api.regions.getShepherdsForBacenta,
+    token && editBacenta ? { token, bacentaId: editBacenta.id } : "skip"
+  );
   const [bacentaDetailId, setBacentaDetailId] = React.useState<Id<"bacentas"> | null>(null);
   const [deleteBacentaId, setDeleteBacentaId] = React.useState<Id<"bacentas"> | null>(null);
 
@@ -250,13 +287,30 @@ export default function RegionsPage() {
     }
   };
 
-  const handleEditBacenta = (b: { _id: Id<"bacentas">; name: string; area?: string; meetingDay?: number }) => {
-    setEditBacenta({
-      id: b._id,
-      name: b.name,
-      area: b.area ?? "",
-      meetingDay: b.meetingDay ?? "",
-    });
+  const handleEditBacenta = async (b: { _id: Id<"bacentas">; name: string; area?: string; meetingDay?: number }) => {
+    if (!token) return;
+    // Fetch current shepherds for this bacenta
+    try {
+      const currentShepherds = await new Promise<Id<"users">[]>((resolve) => {
+        // We'll set the state first, then the query will run
+        setEditBacenta({
+          id: b._id,
+          name: b.name,
+          area: b.area ?? "",
+          meetingDay: b.meetingDay ?? "",
+          shepherdIds: [], // Will be populated by query
+        });
+        resolve([]);
+      });
+    } catch (e) {
+      setEditBacenta({
+        id: b._id,
+        name: b.name,
+        area: b.area ?? "",
+        meetingDay: b.meetingDay ?? "",
+        shepherdIds: [],
+      });
+    }
   };
 
   const handleSaveEditBacenta = async () => {
@@ -270,6 +324,14 @@ export default function RegionsPage() {
         area: editBacenta.area.trim() || undefined,
         meetingDay: editBacenta.meetingDay === "" ? undefined : editBacenta.meetingDay,
       });
+      
+      // Update shepherd assignments - replace all shepherds for this bacenta
+      await setBacentaShepherdsMut({
+        token,
+        bacentaId: editBacenta.id,
+        shepherdIds: editBacenta.shepherdIds,
+      });
+      
       toast.success("Bacenta updated");
       setEditBacenta(null);
     } catch (e: any) {
@@ -458,6 +520,48 @@ export default function RegionsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {shepherds && shepherds.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Assign shepherds</Label>
+                  <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {shepherds.map((shepherd) => {
+                      const isSelected = editBacenta.shepherdIds.includes(shepherd._id);
+                      return (
+                        <div key={shepherd._id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-shepherd-${shepherd._id}`}
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              setEditBacenta((p) =>
+                                p
+                                  ? {
+                                      ...p,
+                                      shepherdIds: checked
+                                        ? [...p.shepherdIds, shepherd._id]
+                                        : p.shepherdIds.filter((id) => id !== shepherd._id),
+                                    }
+                                  : null
+                              );
+                            }}
+                          />
+                          <ShepherdAvatar
+                            shepherdId={shepherd._id}
+                            profilePhotoId={shepherd.profilePhotoId}
+                            name={shepherd.name}
+                            token={token}
+                          />
+                          <label
+                            htmlFor={`edit-shepherd-${shepherd._id}`}
+                            className="text-sm font-medium leading-none cursor-pointer flex-1"
+                          >
+                            {shepherd.name}
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditBacenta(null)}>Cancel</Button>
                 <Button onClick={handleSaveEditBacenta} disabled={loading !== null}>
@@ -556,7 +660,11 @@ export default function RegionsPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                        <Badge variant="secondary">{r.bacentas.length} bacenta(s)</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">{r.bacentas.length} bacenta(s)</Badge>
+                          <Badge variant="secondary">{r.totalShepherds ?? 0} shepherd(s)</Badge>
+                          <Badge variant="secondary">{r.totalMembers ?? 0} member(s)</Badge>
+                        </div>
                       </div>
                     </CardHeader>
                   </CollapsibleTrigger>
@@ -805,26 +913,24 @@ function BacentaDetailDialog({
           ) : (
             <div className="space-y-6">
               {data.shepherdsWithMembers.map(({ shepherd, members }) => (
-                <div key={shepherd._id} className="space-y-2">
-                  <div className="flex items-center gap-3">
+                <div key={shepherd._id} className="space-y-3">
+                  <div className="flex flex-col items-center gap-2">
                     <ShepherdAvatar
                       shepherdId={shepherd._id}
                       profilePhotoId={shepherd.profilePhotoId}
                       name={shepherd.name}
                       token={token}
                     />
-                    <div>
+                    <div className="text-center">
                       <p className="font-medium">{shepherd.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {members.length} member{members.length !== 1 ? "s" : ""}
                       </p>
                     </div>
                   </div>
-                  <ul className="ml-14 space-y-1 list-disc list-inside text-sm text-muted-foreground">
+                  <ul className="space-y-2">
                     {members.map((m) => (
-                      <li key={m._id}>
-                        {m.preferredName || m.firstName} {m.lastName}
-                      </li>
+                      <MemberListItem key={m._id} member={m} token={token} />
                     ))}
                   </ul>
                 </div>

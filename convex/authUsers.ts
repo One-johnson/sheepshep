@@ -382,11 +382,11 @@ export const bulkAdd = mutation({
           qualification: userData.qualification,
           yearsInMinistry: userData.yearsInMinistry,
           ministryFocus: userData.ministryFocus,
-          supervisedZones: userData.supervisedZones,
+         
           notes: userData.notes,
           commissioningDate: userData.commissioningDate,
           occupation: userData.occupation,
-          assignedZone: userData.assignedZone,
+        
           educationalBackground: userData.educationalBackground,
           status: userData.status,
           overseerId: userData.overseerId,

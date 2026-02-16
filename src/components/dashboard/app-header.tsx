@@ -82,12 +82,20 @@ export function AppHeader() {
     token ? { token } : "skip"
   );
 
-  // Redirect to login if no token or user
+  // Redirect to login if no token, user, or unauthorized error
   React.useEffect(() => {
     if (!token) {
       router.push("/login");
+      return;
     }
-  }, [token, router]);
+    
+    // Check if queries failed with unauthorized error (token invalid/expired)
+    if (currentUser === null && token) {
+      // Token exists but user query returned null - likely invalid token
+      localStorage.removeItem("authToken");
+      router.push("/login");
+    }
+  }, [token, currentUser, router]);
 
   const logout = useMutation(api.auth.logout);
 

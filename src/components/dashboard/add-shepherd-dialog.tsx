@@ -41,6 +41,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { convertDateToTimestamp, getUserFriendlyError, SUCCESS_SCRIPTURES, ERROR_SCRIPTURES } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 const shepherdSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -73,7 +76,7 @@ interface AddShepherdDialogProps {
 
 export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps): React.JSX.Element {
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  const register = useMutation(api.auth.register);
+  const createShepherd = useMutation(api.auth.createShepherd);
   const bulkAdd = useMutation(api.authUsers.bulkAdd);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);
@@ -90,7 +93,10 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
     api.regions.listBacentasByRegionForSelect,
     token && selectedRegionId ? { token, regionId: selectedRegionId } : "skip"
   );
-  const setShepherdBacentas = useMutation(api.regions.setShepherdBacentas);
+  const selectedRegion = regions?.find((r) => r._id === selectedRegionId);
+  const regionPastor = selectedRegion?.pastorId
+    ? pastors?.find((p) => p._id === selectedRegion.pastorId)
+    : null;
 
   const [selectedBacentaIds, setSelectedBacentaIds] = React.useState<Id<"bacentas">[]>([]);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -157,10 +163,23 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
         headers: { "Content-Type": photoFile.type },
         body: photoFile,
       });
+      
+      if (!result.ok) {
+        throw new Error(`Upload failed with status ${result.status}`);
+      }
+      
       const { storageId } = await result.json();
+      if (!storageId) {
+        throw new Error("No storage ID returned from upload");
+      }
+      
       return storageId as Id<"_storage">;
     } catch (error: any) {
-      toast.error("Failed to upload photo");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to upload photo");
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.upload,
+        duration: 6000,
+      });
       return null;
     } finally {
       setIsUploadingPhoto(false);
@@ -354,24 +373,74 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
     setCsvError(null);
 
     try {
+      // Validate file type
+      if (!csvFile.name.toLowerCase().endsWith('.csv')) {
+        throw new Error("Please upload a CSV file");
+      }
+
+      // Validate file size (max 5MB)
+      if (csvFile.size > 5 * 1024 * 1024) {
+        throw new Error("CSV file size must be less than 5MB");
+      }
+
       const users = await parseCSV(csvFile);
       if (users.length === 0) {
-        setCsvError("No valid users found in CSV file");
+        const errorInfo = getUserFriendlyError("No valid users found in CSV file");
+        setCsvError(errorInfo.message);
+        toast.error(errorInfo.message, {
+          description: errorInfo.scripture || ERROR_SCRIPTURES.validation,
+          duration: 6000,
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validate required fields for each user
+      const validationErrors: string[] = [];
+      users.forEach((user, index) => {
+        if (!user.email) validationErrors.push(`Row ${index + 2}: Email is required`);
+        if (!user.password) validationErrors.push(`Row ${index + 2}: Password is required`);
+        if (!user.name) validationErrors.push(`Row ${index + 2}: Name is required`);
+      });
+
+      if (validationErrors.length > 0) {
+        const errorMsg = `Validation errors:\n${validationErrors.slice(0, 5).join('\n')}${validationErrors.length > 5 ? `\n...and ${validationErrors.length - 5} more` : ''}`;
+        setCsvError(errorMsg);
+        toast.error("CSV validation failed", {
+          description: ERROR_SCRIPTURES.validation,
+          duration: 8000,
+        });
         setIsSubmitting(false);
         return;
       }
 
       const result = await bulkAdd({ token, users });
-      toast.success(`Successfully imported ${result.created} shepherd(s)`);
+      
+      if (result.created > 0) {
+        toast.success(`Successfully imported ${result.created} shepherd(s)`, {
+          description: SUCCESS_SCRIPTURES.csvImported,
+          duration: 6000,
+        });
+      }
+      
       if (result.errors && result.errors.length > 0) {
-        toast.warning(`${result.errors.length} shepherd(s) could not be imported`);
+        const errorMsg = `${result.errors.length} shepherd(s) could not be imported. Check console for details.`;
+        toast.warning(errorMsg, {
+          description: ERROR_SCRIPTURES.validation,
+          duration: 8000,
+        });
         console.error("Import errors:", result.errors);
       }
+      
       setCsvFile(null);
       onOpenChange(false);
     } catch (error: any) {
-      setCsvError(error.message || "Failed to import CSV");
-      toast.error(error.message || "Failed to import CSV");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to import CSV");
+      setCsvError(errorInfo.message);
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.network,
+        duration: 6000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -383,48 +452,50 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
 
     setIsSubmitting(true);
     try {
-      const submitData: any = {
-        ...data,
-        role: "shepherd" as const,
-      };
-
-      // Convert date strings to timestamps
-      if (data.dateOfBirth) {
-        const date = new Date(data.dateOfBirth);
-        if (!isNaN(date.getTime())) {
-          submitData.dateOfBirth = date.getTime();
-        }
-      }
-      if (data.commissioningDate) {
-        const date = new Date(data.commissioningDate);
-        if (!isNaN(date.getTime())) {
-          submitData.commissioningDate = date.getTime();
-        }
-      }
-      if (data.weddingAnniversaryDate) {
-        const date = new Date(data.weddingAnniversaryDate);
-        if (!isNaN(date.getTime())) {
-          submitData.weddingAnniversaryDate = date.getTime();
-        }
-      }
-
-      if (data.overseerId && data.overseerId !== "none") {
-        submitData.overseerId = data.overseerId as any;
-      }
-
       // Upload photo if selected
+      let profilePhotoId: Id<"_storage"> | undefined = undefined;
       if (photoFile) {
         const storageId = await uploadPhoto();
-        if (storageId) {
-          submitData.profilePhotoId = storageId;
+        if (!storageId) {
+          // Photo upload failed, but allow submission without photo
+          toast.warning("Photo upload failed. Continuing without photo.", {
+            description: ERROR_SCRIPTURES.upload,
+            duration: 5000,
+          });
+        } else {
+          profilePhotoId = storageId;
         }
       }
 
-      const result = await register({ token, ...submitData });
-      if (result?.userId && selectedBacentaIds.length > 0) {
-        await setShepherdBacentas({ token, shepherdId: result.userId, bacentaIds: selectedBacentaIds });
-      }
-      toast.success("Shepherd added successfully");
+      const result = await createShepherd({
+        token: token!,
+        email: data.email,
+        password: data.password,
+        name: data.name,
+        phone: data.phone || undefined,
+        whatsappNumber: data.whatsappNumber || undefined,
+        preferredName: data.preferredName || undefined,
+        gender: data.gender,
+        dateOfBirth: convertDateToTimestamp(data.dateOfBirth),
+        commissioningDate: convertDateToTimestamp(data.commissioningDate),
+        occupation: data.occupation || undefined,
+        educationalBackground: data.educationalBackground || undefined,
+        status: data.status || "active",
+        overseerId: regionPastor?._id || (data.overseerId && data.overseerId !== "none" ? (data.overseerId as Id<"users">) : undefined),
+        bacentaIds: selectedBacentaIds.length > 0 ? selectedBacentaIds : undefined,
+        profilePhotoId,
+        maritalStatus: data.maritalStatus,
+        weddingAnniversaryDate: convertDateToTimestamp(data.weddingAnniversaryDate),
+        spouseName: data.spouseName || undefined,
+        spouseOccupation: data.spouseOccupation || undefined,
+        childrenCount: data.childrenCount,
+      });
+      
+      toast.success("Shepherd added successfully", {
+        description: SUCCESS_SCRIPTURES.shepherdCreated,
+        duration: 6000,
+      });
+      
       form.reset();
       setPhotoFile(null);
       setPhotoPreview(null);
@@ -432,7 +503,11 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       setSelectedBacentaIds([]);
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message || "Failed to add shepherd");
+      const errorInfo = getUserFriendlyError(error.message || "Failed to add shepherd");
+      toast.error(errorInfo.message, {
+        description: errorInfo.scripture || ERROR_SCRIPTURES.validation,
+        duration: 6000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -696,31 +771,47 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="overseerId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Overseer (Pastor)</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select pastor" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {pastors?.map((pastor) => (
-                                <SelectItem key={pastor._id} value={pastor._id}>
-                                  {pastor.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {regionPastor && (
+                      <div className="md:col-span-2 p-3 bg-muted rounded-md">
+                        <Label className="text-sm font-medium">Assigned Pastor</Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {regionPastor.name} {regionPastor.email && `(${regionPastor.email})`}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          This pastor is assigned to the selected region and will oversee this shepherd.
+                        </p>
+                      </div>
+                    )}
+                    {!regionPastor && (
+                      <FormField
+                        control={form.control}
+                        name="overseerId"
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>Overseer (Pastor)</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select pastor (optional)" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {pastors?.map((pastor) => (
+                                  <SelectItem key={pastor._id} value={pastor._id}>
+                                    {pastor.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Select a pastor to oversee this shepherd. If a region with a pastor is selected, that pastor will be used automatically.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <div className="md:col-span-2 space-y-2">
                       <FormLabel>Region</FormLabel>

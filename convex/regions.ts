@@ -254,6 +254,51 @@ export const setShepherdBacentas = mutation({
   },
 });
 
+/** Set (replace) all shepherds for a bacenta. */
+export const setBacentaShepherds = mutation({
+  args: {
+    token: v.string(),
+    bacentaId: v.id("bacentas"),
+    shepherdIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) throw new Error("Unauthorized");
+    const user = await ctx.db.get(userId);
+    if (!user || (user.role !== "admin" && user.role !== "pastor"))
+      throw new Error("Unauthorized - admin or pastor required");
+
+    const bacenta = await ctx.db.get(args.bacentaId);
+    if (!bacenta) throw new Error("Bacenta not found");
+
+    // Remove all existing shepherd-bacenta links for this bacenta
+    const existing = await ctx.db
+      .query("shepherdBacentas")
+      .withIndex("by_bacenta", (q) => q.eq("bacentaId", args.bacentaId))
+      .collect();
+    for (const link of existing) await ctx.db.delete(link._id);
+
+    // Add new shepherd-bacenta links
+    const now = Date.now();
+    for (const shepherdId of args.shepherdIds) {
+      // Check if pastor can assign to this shepherd
+      if (user.role === "pastor") {
+        const shepherd = await ctx.db.get(shepherdId);
+        if (!shepherd || shepherd.overseerId !== userId)
+          throw new Error("Unauthorized - can only assign bacentas to your shepherds");
+      }
+
+      await ctx.db.insert("shepherdBacentas", {
+        shepherdId,
+        bacentaId: args.bacentaId,
+        addedAt: now,
+        addedBy: userId,
+      });
+    }
+    return { success: true };
+  },
+});
+
 /** Assign multiple shepherds to a bacenta (adds bacenta to each shepherd's existing bacentas). */
 export const assignShepherdsToBacenta = mutation({
   args: {
@@ -313,10 +358,60 @@ export const listRegionsWithDetails = query({
           .withIndex("by_region", (q) => q.eq("regionId", r._id))
           .collect();
         const pastor = r.pastorId ? await ctx.db.get(r.pastorId) : null;
-        return { ...r, bacentas, pastor };
+        
+        // Get all shepherd-bacenta links for bacentas in this region
+        const bacentaIds = bacentas.map((b) => b._id);
+        const shepherdLinks = await Promise.all(
+          bacentaIds.map((bacentaId) =>
+            ctx.db
+              .query("shepherdBacentas")
+              .withIndex("by_bacenta", (q) => q.eq("bacentaId", bacentaId))
+              .collect()
+          )
+        );
+        const uniqueShepherdIds = new Set(
+          shepherdLinks.flat().map((link) => link.shepherdId)
+        );
+        const totalShepherds = uniqueShepherdIds.size;
+        
+        // Get total members for all bacentas in this region (members belong to bacentas, not directly to shepherds)
+        const memberCounts = await Promise.all(
+          bacentaIds.map((bacentaId) =>
+            ctx.db
+              .query("members")
+              .withIndex("by_bacenta", (q) => q.eq("bacentaId", bacentaId))
+              .filter((q) => q.eq(q.field("isActive"), true))
+              .collect()
+          )
+        );
+        const totalMembers = memberCounts.flat().length;
+        
+        return { ...r, bacentas, pastor, totalShepherds, totalMembers };
       })
     );
     return result;
+  },
+});
+
+/** Get shepherds assigned to a bacenta */
+export const getShepherdsForBacenta = query({
+  args: { token: v.string(), bacentaId: v.id("bacentas") },
+  handler: async (ctx, args) => {
+    const userId = await verifyToken(ctx, args.token);
+    if (!userId) throw new Error("Unauthorized");
+    const links = await ctx.db
+      .query("shepherdBacentas")
+      .withIndex("by_bacenta", (q) => q.eq("bacentaId", args.bacentaId))
+      .collect();
+    const shepherds = await Promise.all(
+      links.map(async (link) => {
+        const shepherd = await ctx.db.get(link.shepherdId);
+        if (!shepherd) return null;
+        const { passwordHash: _, ...shepherdSafe } = shepherd;
+        return shepherdSafe;
+      })
+    );
+    return shepherds.filter((x): x is NonNullable<typeof x> => x != null);
   },
 });
 
@@ -340,10 +435,12 @@ export const getBacentaShepherdsAndMembers = query({
         const shepherd = await ctx.db.get(link.shepherdId);
         if (!shepherd) return null;
         const { passwordHash: _, ...shepherdSafe } = shepherd;
+        // Get members assigned to this specific bacenta (not all members of the shepherd)
         const members = await ctx.db
           .query("members")
-          .withIndex("by_shepherd", (q) => q.eq("shepherdId", link.shepherdId))
+          .withIndex("by_bacenta", (q) => q.eq("bacentaId", args.bacentaId))
           .filter((q) => q.eq(q.field("isActive"), true))
+          .filter((q) => q.eq(q.field("shepherdId"), link.shepherdId))
           .collect();
         return { shepherd: shepherdSafe, members };
       })

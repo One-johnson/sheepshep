@@ -13,6 +13,7 @@ import type * as attendance from "../attendance.js";
 import type * as auditLogs from "../auditLogs.js";
 import type * as auth from "../auth.js";
 import type * as authUsers from "../authUsers.js";
+import type * as cleanup from "../cleanup.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as events from "../events.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   auditLogs: typeof auditLogs;
   auth: typeof auth;
   authUsers: typeof authUsers;
+  cleanup: typeof cleanup;
   crons: typeof crons;
   dashboard: typeof dashboard;
   events: typeof events;

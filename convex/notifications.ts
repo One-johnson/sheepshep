@@ -45,7 +45,8 @@ export const getUnreadCount = query({
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
     if (!userId) {
-      throw new Error("Unauthorized");
+      // Return 0 instead of throwing - let the UI handle auth redirect
+      return { count: 0 };
     }
 
     const unreadNotifications = await ctx.db

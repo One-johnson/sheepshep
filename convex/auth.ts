@@ -67,16 +67,14 @@ export const cleanupExpiredSessions = mutation({
   },
 });
 
-// Register a new user
-// For admin/pastor: creates user directly (admin only)
-// For shepherd: creates registration request for approval
+// Register a new shepherd (public registration - creates registration request)
+// This is for public shepherd self-registration. Admins/pastors should use createShepherd instead.
 export const register = mutation({
   args: {
-    token: v.optional(v.string()),
     email: v.string(),
     password: v.string(),
     name: v.string(), // Full Name
-    role: v.union(v.literal("admin"), v.literal("pastor"), v.literal("shepherd")),
+    role: v.literal("shepherd"), // Only shepherds can self-register
     // Basic contact
     phone: v.optional(v.string()),
     whatsappNumber: v.optional(v.string()),
@@ -84,22 +82,15 @@ export const register = mutation({
     preferredName: v.optional(v.string()),
     gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     dateOfBirth: v.optional(v.number()), // Unix timestamp
-    // Pastor-specific fields
-    ordinationDate: v.optional(v.number()), // Unix timestamp
-    homeAddress: v.optional(v.string()),
-    qualification: v.optional(v.string()),
-    yearsInMinistry: v.optional(v.number()),
-    ministryFocus: v.optional(v.array(v.string())),
-    supervisedZones: v.optional(v.array(v.string())),
-    notes: v.optional(v.string()),
     // Shepherd-specific fields
     commissioningDate: v.optional(v.number()), // Unix timestamp
     occupation: v.optional(v.string()),
-    assignedZone: v.optional(v.string()),
+    homeAddress: v.optional(v.string()),
     educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
     ),
+    notes: v.optional(v.string()),
     // Relationships
     overseerId: v.optional(v.id("users")), // For shepherds, assign a pastor
     profilePhotoId: v.optional(v.id("_storage")),
@@ -118,22 +109,6 @@ export const register = mutation({
     childrenCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Verify token and check admin access for admin/pastor creation
-    if (args.role === "admin" || args.role === "pastor") {
-      if (!args.token) {
-        throw new Error("Unauthorized - token required to create admins or pastors");
-      }
-      const currentUserId = await verifyToken(ctx, args.token);
-      if (!currentUserId) {
-        throw new Error("Unauthorized");
-      }
-
-      const currentUser = await ctx.db.get(currentUserId);
-      if (!currentUser || currentUser.role !== "admin") {
-        throw new Error("Unauthorized - admin access required to create admins or pastors");
-      }
-    }
-
     // Check if user already exists
     const existingUser = await ctx.db
       .query("users")
@@ -155,88 +130,32 @@ export const register = mutation({
     }
 
     // Hash password using bcryptjs
-    const saltRounds = 10;
-    const passwordHash = bcrypt.hashSync(args.password, saltRounds);
+    const passwordHash = bcrypt.hashSync(args.password, 10);
 
-    // If shepherd, either direct creation (admin/pastor with token) or registration request
-    if (args.role === "shepherd") {
-      // Check if this is the very first user in the system
-      const existingUsers = await ctx.db.query("users").collect();
-      const isFirstUser = existingUsers.length === 0;
+    // Check if this is the very first user in the system
+    const existingUsers = await ctx.db.query("users").collect();
+    const isFirstUser = existingUsers.length === 0;
 
-      // If admin or pastor is creating shepherd with token, create user directly
-      if (args.token) {
-        const currentUserId = await verifyToken(ctx, args.token);
-        if (currentUserId) {
-          const currentUser = await ctx.db.get(currentUserId);
-          if (currentUser && (currentUser.role === "admin" || currentUser.role === "pastor")) {
-            const userId = await ctx.db.insert("users", {
-              email: args.email,
-              name: args.name,
-              role: "shepherd",
-              passwordHash,
-              isActive: true,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              phone: args.phone,
-              whatsappNumber: args.whatsappNumber,
-              preferredName: args.preferredName,
-              gender: args.gender,
-              dateOfBirth: args.dateOfBirth,
-              commissioningDate: args.commissioningDate,
-              occupation: args.occupation,
-              assignedZone: args.assignedZone,
-              educationalBackground: args.educationalBackground,
-              status: args.status ?? "active",
-              overseerId: args.overseerId,
-              profilePhotoId: args.profilePhotoId,
-              maritalStatus: args.maritalStatus,
-              weddingAnniversaryDate: args.weddingAnniversaryDate,
-              spouseName: args.spouseName,
-              spouseOccupation: args.spouseOccupation,
-              childrenCount: args.childrenCount,
-            });
-            await notifyAdmins(
-              ctx,
-              "user_created",
-              "New User Created",
-              `${args.name} (${args.email}) has been created as shepherd`,
-              userId,
-              "user"
-            );
-            return { userId, success: true };
-          }
-        }
-      }
-
-      // If this is the first user, auto-approve and create them as an admin directly
-      if (isFirstUser) {
-        const userId = await ctx.db.insert("users", {
-          email: args.email,
-          name: args.name,
-          role: "admin", // First user becomes admin
-          passwordHash,
-          isActive: true,
-          isFirstAdmin: true, // Mark as first admin
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          phone: args.phone,
-          whatsappNumber: args.whatsappNumber,
-          preferredName: args.preferredName,
-          gender: args.gender,
-          dateOfBirth: args.dateOfBirth,
-          ordinationDate: args.ordinationDate,
-          homeAddress: args.homeAddress,
-          qualification: args.qualification,
-          yearsInMinistry: args.yearsInMinistry,
-          ministryFocus: args.ministryFocus,
-          supervisedZones: args.supervisedZones,
-          notes: args.notes,
-          commissioningDate: args.commissioningDate,
-          occupation: args.occupation,
-          assignedZone: args.assignedZone,
-          educationalBackground: args.educationalBackground,
-          status: args.status,
+    // If this is the first user, auto-approve and create them as an admin directly
+    if (isFirstUser) {
+      const userId = await ctx.db.insert("users", {
+        email: args.email,
+        name: args.name,
+        role: "admin", // First user becomes admin
+        passwordHash,
+        isActive: true,
+        isFirstAdmin: true, // Mark as first admin
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        phone: args.phone,
+        whatsappNumber: args.whatsappNumber,
+        preferredName: args.preferredName,
+        gender: args.gender,
+        dateOfBirth: args.dateOfBirth,
+        commissioningDate: args.commissioningDate,
+        occupation: args.occupation,
+        educationalBackground: args.educationalBackground,
+        status: args.status ?? "active",
         overseerId: args.overseerId,
         profilePhotoId: args.profilePhotoId,
         maritalStatus: args.maritalStatus,
@@ -246,53 +165,52 @@ export const register = mutation({
         childrenCount: args.childrenCount,
       });
 
-        return { userId, success: true, isFirstAdmin: true };
-      }
+      return { userId, success: true, isFirstAdmin: true };
+    }
 
-      // Get an admin user for requestedBy (or use overseerId if provided)
-      let requestedBy: Id<"users"> | undefined;
-      if (args.overseerId) {
-        requestedBy = args.overseerId;
+    // Get an admin user for requestedBy (or use overseerId if provided)
+    let requestedBy: Id<"users"> | undefined;
+    if (args.overseerId) {
+      requestedBy = args.overseerId;
+    } else {
+      const admin = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q) => q.eq("role", "admin"))
+        .first();
+      if (admin) {
+        requestedBy = admin._id;
       } else {
-        const admin = await ctx.db
-          .query("users")
-          .withIndex("by_role", (q) => q.eq("role", "admin"))
-          .first();
-        if (admin) {
-          requestedBy = admin._id;
-        } else {
-          // Fallback: get any user
-          const anyUser = await ctx.db.query("users").first();
-          requestedBy = anyUser?._id;
-        }
+        // Fallback: get any user
+        const anyUser = await ctx.db.query("users").first();
+        requestedBy = anyUser?._id;
       }
+    }
 
-      // This should not happen now since we handle first user above, but keep as safety check
-      if (!requestedBy) {
-        throw new Error(
-          "No administrators found. Please contact the system administrator to set up the first admin account."
-        );
-      }
+    // This should not happen now since we handle first user above, but keep as safety check
+    if (!requestedBy) {
+      throw new Error(
+        "No administrators found. Please contact the system administrator to set up the first admin account."
+      );
+    }
 
-      const requestId = await ctx.db.insert("registrationRequests", {
-        email: args.email,
-        name: args.name,
-        passwordHash,
-        phone: args.phone,
-        whatsappNumber: args.whatsappNumber,
-        preferredName: args.preferredName,
-        gender: args.gender,
-        dateOfBirth: args.dateOfBirth,
+    const requestId = await ctx.db.insert("registrationRequests", {
+      email: args.email,
+      name: args.name,
+      passwordHash,
+      phone: args.phone,
+      whatsappNumber: args.whatsappNumber,
+      preferredName: args.preferredName,
+      gender: args.gender,
+      dateOfBirth: args.dateOfBirth,
         commissioningDate: args.commissioningDate,
         occupation: args.occupation,
-        assignedZone: args.assignedZone,
         homeAddress: args.homeAddress,
         notes: args.notes,
         status: "pending",
-        requestedBy: requestedBy,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+      requestedBy: requestedBy,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
 
       // Notify admins and pastors
       const admins = await ctx.db
@@ -336,25 +254,78 @@ export const register = mutation({
         }
       }
 
-      return { requestId, status: "pending", message: "Registration request submitted for approval" };
+    return { requestId, status: "pending", message: "Registration request submitted for approval" };
+  },
+});
+
+// Create a pastor (admin only)
+export const createPastor = mutation({
+  args: {
+    token: v.string(),
+    email: v.string(),
+    password: v.string(),
+    name: v.string(),
+    phone: v.optional(v.string()),
+    whatsappNumber: v.optional(v.string()),
+    preferredName: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    dateOfBirth: v.optional(v.number()),
+    ordinationDate: v.optional(v.number()),
+    homeAddress: v.optional(v.string()),
+    qualification: v.optional(v.string()),
+    yearsInMinistry: v.optional(v.number()),
+    ministryFocus: v.optional(v.array(v.string())),
+    regionId: v.optional(v.id("regions")), // Region to assign pastor to
+    status: v.optional(
+      v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
+    ),
+    notes: v.optional(v.string()),
+    profilePhotoId: v.optional(v.id("_storage")),
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()),
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Verify admin access
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
     }
 
-    // For admin/pastor: direct creation (admin only)
-    // Check if this is the first admin
-    const existingAdmins = await ctx.db
+    const currentUser = await ctx.db.get(currentUserId);
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Unauthorized - admin access required to create pastors");
+    }
+
+    // Check if user already exists
+    const existingUser = await ctx.db
       .query("users")
-      .withIndex("by_role", (q) => q.eq("role", "admin"))
-      .collect();
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
 
-    const isFirstAdmin = existingAdmins.length === 0 && args.role === "admin";
+    if (existingUser) {
+      throw new Error("User with this email already exists");
+    }
 
+    // Hash password
+    const passwordHash = bcrypt.hashSync(args.password, 10);
+
+    // Create pastor
     const userId = await ctx.db.insert("users", {
       email: args.email,
       name: args.name,
-      role: args.role,
+      role: "pastor",
       passwordHash,
       isActive: true,
-      isFirstAdmin: isFirstAdmin || undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       phone: args.phone,
@@ -367,14 +338,8 @@ export const register = mutation({
       qualification: args.qualification,
       yearsInMinistry: args.yearsInMinistry,
       ministryFocus: args.ministryFocus,
-      supervisedZones: args.supervisedZones,
+      status: args.status ?? "active",
       notes: args.notes,
-      commissioningDate: args.commissioningDate,
-      occupation: args.occupation,
-      assignedZone: args.assignedZone,
-      educationalBackground: args.educationalBackground,
-      status: args.status,
-      overseerId: args.overseerId,
       profilePhotoId: args.profilePhotoId,
       maritalStatus: args.maritalStatus,
       weddingAnniversaryDate: args.weddingAnniversaryDate,
@@ -383,17 +348,259 @@ export const register = mutation({
       childrenCount: args.childrenCount,
     });
 
-    // Notify admins about new user creation
+    // Assign pastor to region if provided
+    if (args.regionId) {
+      const region = await ctx.db.get(args.regionId);
+      if (!region) {
+        throw new Error("Region not found");
+      }
+      await ctx.db.patch(args.regionId, {
+        pastorId: userId,
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Notify admins
     await notifyAdmins(
       ctx,
       "user_created",
-      "New User Created",
-      `${args.name} (${args.email}) has been created as ${args.role}`,
+      "New Pastor Created",
+      `${args.name} (${args.email}) has been created as pastor`,
       userId,
       "user"
     );
 
     return { userId, success: true };
+  },
+});
+
+// Create a shepherd (admin or pastor only)
+export const createShepherd = mutation({
+  args: {
+    token: v.string(),
+    email: v.string(),
+    password: v.string(),
+    name: v.string(),
+    phone: v.optional(v.string()),
+    whatsappNumber: v.optional(v.string()),
+    preferredName: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    dateOfBirth: v.optional(v.number()),
+    commissioningDate: v.optional(v.number()),
+    occupation: v.optional(v.string()),
+    educationalBackground: v.optional(v.string()),
+    status: v.optional(
+      v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
+    ),
+    overseerId: v.optional(v.id("users")),
+    bacentaIds: v.optional(v.array(v.id("bacentas"))),
+    profilePhotoId: v.optional(v.id("_storage")),
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()),
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Verify admin or pastor access
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    const currentUser = await ctx.db.get(currentUserId);
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "pastor")) {
+      throw new Error("Unauthorized - admin or pastor access required to create shepherds");
+    }
+
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (existingUser) {
+      throw new Error("User with this email already exists");
+    }
+
+    // If pastor is creating, validate overseerId matches them
+    if (currentUser.role === "pastor" && args.overseerId && args.overseerId !== currentUserId) {
+      throw new Error("Unauthorized - pastors can only assign shepherds to themselves");
+    }
+
+    // Hash password
+    const passwordHash = bcrypt.hashSync(args.password, 10);
+
+    // Create shepherd
+    const userId = await ctx.db.insert("users", {
+      email: args.email,
+      name: args.name,
+      role: "shepherd",
+      passwordHash,
+      isActive: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      phone: args.phone,
+      whatsappNumber: args.whatsappNumber,
+      preferredName: args.preferredName,
+      gender: args.gender,
+      dateOfBirth: args.dateOfBirth,
+      commissioningDate: args.commissioningDate,
+      occupation: args.occupation,
+      educationalBackground: args.educationalBackground,
+      status: args.status ?? "active",
+      overseerId: args.overseerId || (currentUser.role === "pastor" ? currentUserId : undefined),
+      profilePhotoId: args.profilePhotoId,
+      maritalStatus: args.maritalStatus,
+      weddingAnniversaryDate: args.weddingAnniversaryDate,
+      spouseName: args.spouseName,
+      spouseOccupation: args.spouseOccupation,
+      childrenCount: args.childrenCount,
+    });
+
+    // Assign bacentas atomically if provided
+    if (args.bacentaIds && args.bacentaIds.length > 0) {
+      const now = Date.now();
+      for (const bacentaId of args.bacentaIds) {
+        // Validate bacenta exists
+        const bacenta = await ctx.db.get(bacentaId);
+        if (!bacenta) {
+          throw new Error(`Bacenta ${bacentaId} not found`);
+        }
+
+        // Check if pastor can assign to this bacenta
+        if (currentUser.role === "pastor") {
+          const region = await ctx.db.get(bacenta.regionId);
+          if (!region || region.pastorId !== currentUserId) {
+            throw new Error("Unauthorized - can only assign bacentas in your regions");
+          }
+        }
+
+        await ctx.db.insert("shepherdBacentas", {
+          shepherdId: userId,
+          bacentaId,
+          addedAt: now,
+          addedBy: currentUserId,
+        });
+      }
+    }
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "user_created",
+      "New Shepherd Created",
+      `${args.name} (${args.email}) has been created as shepherd`,
+      userId,
+      "user"
+    );
+
+    return { userId, success: true };
+  },
+});
+
+// Create an admin (admin only)
+export const createAdmin = mutation({
+  args: {
+    token: v.string(),
+    email: v.string(),
+    password: v.string(),
+    name: v.string(),
+    phone: v.optional(v.string()),
+    whatsappNumber: v.optional(v.string()),
+    preferredName: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    dateOfBirth: v.optional(v.number()),
+    homeAddress: v.optional(v.string()),
+    profilePhotoId: v.optional(v.id("_storage")),
+    maritalStatus: v.optional(
+      v.union(
+        v.literal("single"),
+        v.literal("married"),
+        v.literal("divorced"),
+        v.literal("widowed")
+      )
+    ),
+    weddingAnniversaryDate: v.optional(v.number()),
+    spouseName: v.optional(v.string()),
+    spouseOccupation: v.optional(v.string()),
+    childrenCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Verify admin access
+    const currentUserId = await verifyToken(ctx, args.token);
+    if (!currentUserId) {
+      throw new Error("Unauthorized");
+    }
+
+    const currentUser = await ctx.db.get(currentUserId);
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Unauthorized - admin access required to create admins");
+    }
+
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (existingUser) {
+      throw new Error("User with this email already exists");
+    }
+
+    // Check if this is the first admin
+    const existingAdmins = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", "admin"))
+      .collect();
+
+    const isFirstAdmin = existingAdmins.length === 0;
+
+    // Hash password
+    const passwordHash = bcrypt.hashSync(args.password, 10);
+
+    // Create admin
+    const userId = await ctx.db.insert("users", {
+      email: args.email,
+      name: args.name,
+      role: "admin",
+      passwordHash,
+      isActive: true,
+      isFirstAdmin: isFirstAdmin || undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      phone: args.phone,
+      whatsappNumber: args.whatsappNumber,
+      preferredName: args.preferredName,
+      gender: args.gender,
+      dateOfBirth: args.dateOfBirth,
+      homeAddress: args.homeAddress,
+      profilePhotoId: args.profilePhotoId,
+      maritalStatus: args.maritalStatus,
+      weddingAnniversaryDate: args.weddingAnniversaryDate,
+      spouseName: args.spouseName,
+      spouseOccupation: args.spouseOccupation,
+      childrenCount: args.childrenCount,
+    });
+
+    // Notify admins
+    await notifyAdmins(
+      ctx,
+      "user_created",
+      "New Admin Created",
+      `${args.name} (${args.email}) has been created as admin`,
+      userId,
+      "user"
+    );
+
+    return { userId, success: true, isFirstAdmin };
   },
 });
 
@@ -664,12 +871,10 @@ export const updateProfile = mutation({
     qualification: v.optional(v.string()),
     yearsInMinistry: v.optional(v.number()),
     ministryFocus: v.optional(v.array(v.string())),
-    supervisedZones: v.optional(v.array(v.string())),
     notes: v.optional(v.string()),
     // Shepherd-specific fields
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
-    assignedZone: v.optional(v.string()),
     educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))
@@ -699,11 +904,9 @@ export const updateProfile = mutation({
     if (args.qualification !== undefined) updates.qualification = args.qualification;
     if (args.yearsInMinistry !== undefined) updates.yearsInMinistry = args.yearsInMinistry;
     if (args.ministryFocus !== undefined) updates.ministryFocus = args.ministryFocus;
-    if (args.supervisedZones !== undefined) updates.supervisedZones = args.supervisedZones;
     if (args.notes !== undefined) updates.notes = args.notes;
     if (args.commissioningDate !== undefined) updates.commissioningDate = args.commissioningDate;
     if (args.occupation !== undefined) updates.occupation = args.occupation;
-    if (args.assignedZone !== undefined) updates.assignedZone = args.assignedZone;
     if (args.educationalBackground !== undefined) updates.educationalBackground = args.educationalBackground;
     if (args.status !== undefined) updates.status = args.status;
 
@@ -837,11 +1040,9 @@ export const updateUserProfile = mutation({
     if (args.qualification !== undefined) updates.qualification = args.qualification;
     if (args.yearsInMinistry !== undefined) updates.yearsInMinistry = args.yearsInMinistry;
     if (args.ministryFocus !== undefined) updates.ministryFocus = args.ministryFocus;
-    if (args.supervisedZones !== undefined) updates.supervisedZones = args.supervisedZones;
     if (args.notes !== undefined) updates.notes = args.notes;
     if (args.commissioningDate !== undefined) updates.commissioningDate = args.commissioningDate;
     if (args.occupation !== undefined) updates.occupation = args.occupation;
-    if (args.assignedZone !== undefined) updates.assignedZone = args.assignedZone;
     if (args.educationalBackground !== undefined) updates.educationalBackground = args.educationalBackground;
     if (args.status !== undefined) updates.status = args.status;
     if (args.isActive !== undefined) updates.isActive = args.isActive;

@@ -105,8 +105,8 @@ export function HeroCarousel() {
         </div>
       </div>
 
-      {/* Navigation Buttons */}
-      <Button
+      {/* Navigation Buttons - Hidden in development */}
+      {/* <Button
         variant="outline"
         size="icon"
         className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800"
@@ -123,7 +123,7 @@ export function HeroCarousel() {
         aria-label="Next slide"
       >
         <ChevronRight className="h-5 w-5" />
-      </Button>
+      </Button> */}
 
       {/* Dots Indicator */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
