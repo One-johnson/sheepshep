@@ -14,6 +14,7 @@ import {
   BarChart3,
   Calendar,
   HelpCircle,
+  MapPin,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -52,6 +53,12 @@ const allMenuItems: MenuItem[] = [
     url: "/dashboard/users",
     icon: Users,
     roles: ["admin"], // Admin only
+  },
+  {
+    title: "Regions",
+    url: "/dashboard/regions",
+    icon: MapPin,
+    roles: ["admin"],
   },
   {
     title: "Shepherds",

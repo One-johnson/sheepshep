@@ -158,11 +158,56 @@ export const register = mutation({
     const saltRounds = 10;
     const passwordHash = bcrypt.hashSync(args.password, saltRounds);
 
-    // If shepherd, create registration request instead of direct user creation
+    // If shepherd, either direct creation (admin/pastor with token) or registration request
     if (args.role === "shepherd") {
       // Check if this is the very first user in the system
       const existingUsers = await ctx.db.query("users").collect();
       const isFirstUser = existingUsers.length === 0;
+
+      // If admin or pastor is creating shepherd with token, create user directly
+      if (args.token) {
+        const currentUserId = await verifyToken(ctx, args.token);
+        if (currentUserId) {
+          const currentUser = await ctx.db.get(currentUserId);
+          if (currentUser && (currentUser.role === "admin" || currentUser.role === "pastor")) {
+            const userId = await ctx.db.insert("users", {
+              email: args.email,
+              name: args.name,
+              role: "shepherd",
+              passwordHash,
+              isActive: true,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              phone: args.phone,
+              whatsappNumber: args.whatsappNumber,
+              preferredName: args.preferredName,
+              gender: args.gender,
+              dateOfBirth: args.dateOfBirth,
+              commissioningDate: args.commissioningDate,
+              occupation: args.occupation,
+              assignedZone: args.assignedZone,
+              educationalBackground: args.educationalBackground,
+              status: args.status ?? "active",
+              overseerId: args.overseerId,
+              profilePhotoId: args.profilePhotoId,
+              maritalStatus: args.maritalStatus,
+              weddingAnniversaryDate: args.weddingAnniversaryDate,
+              spouseName: args.spouseName,
+              spouseOccupation: args.spouseOccupation,
+              childrenCount: args.childrenCount,
+            });
+            await notifyAdmins(
+              ctx,
+              "user_created",
+              "New User Created",
+              `${args.name} (${args.email}) has been created as shepherd`,
+              userId,
+              "user"
+            );
+            return { userId, success: true };
+          }
+        }
+      }
 
       // If this is the first user, auto-approve and create them as an admin directly
       if (isFirstUser) {

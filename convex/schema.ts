@@ -551,6 +551,38 @@ export default defineSchema({
     .index("by_type", ["type"])
     .index("by_sent", ["isSent"]),
 
+  // Regions - admin-managed; can have a pastor assigned and color badge
+  regions: defineTable({
+    name: v.string(),
+    pastorId: v.optional(v.id("users")),
+    badgeColor: v.optional(v.string()), // e.g. "blue", "green", "red"
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_pastor", ["pastorId"]),
+
+  // Bacentas - belong to a region
+  bacentas: defineTable({
+    name: v.string(),
+    regionId: v.id("regions"),
+    area: v.optional(v.string()),
+    meetingDay: v.optional(v.number()), // 0=Sunday, 1=Monday, ... 6=Saturday
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_region", ["regionId"]),
+
+  // Shepherd-Bacenta many-to-many (a shepherd can have multiple bacentas)
+  shepherdBacentas: defineTable({
+    shepherdId: v.id("users"),
+    bacentaId: v.id("bacentas"),
+    addedAt: v.number(),
+    addedBy: v.optional(v.id("users")),
+  })
+    .index("by_shepherd", ["shepherdId"])
+    .index("by_bacenta", ["bacentaId"])
+    .index("by_shepherd_bacenta", ["shepherdId", "bacentaId"]),
+
   // Prayer requests - shepherds can send prayer requests for members
   prayerRequests: defineTable({
     memberId: v.id("members"),

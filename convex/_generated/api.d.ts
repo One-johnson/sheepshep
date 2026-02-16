@@ -22,6 +22,7 @@ import type * as members from "../members.js";
 import type * as notificationHelpers from "../notificationHelpers.js";
 import type * as notifications from "../notifications.js";
 import type * as prayerRequests from "../prayerRequests.js";
+import type * as regions from "../regions.js";
 import type * as registrationRequests from "../registrationRequests.js";
 import type * as reminders from "../reminders.js";
 import type * as reports from "../reports.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   notificationHelpers: typeof notificationHelpers;
   notifications: typeof notifications;
   prayerRequests: typeof prayerRequests;
+  regions: typeof regions;
   registrationRequests: typeof registrationRequests;
   reminders: typeof reminders;
   reports: typeof reports;

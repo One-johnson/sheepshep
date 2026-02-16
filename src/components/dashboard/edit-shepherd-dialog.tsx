@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const shepherdSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -48,7 +49,6 @@ const shepherdSchema = z.object({
   dateOfBirth: z.string().optional(),
   commissioningDate: z.string().optional(),
   occupation: z.string().optional(),
-  assignedZone: z.string().optional(),
   status: z.enum(["active", "on_leave", "inactive"]).optional(),
   overseerId: z.string().optional(),
   educationalBackground: z.string().optional(),
@@ -75,7 +75,6 @@ interface EditShepherdDialogProps {
     dateOfBirth?: number;
     commissioningDate?: number;
     occupation?: string;
-    assignedZone?: string;
     status?: "active" | "on_leave" | "inactive";
     overseerId?: Id<"users">;
     profilePhotoId?: Id<"_storage">;
@@ -107,6 +106,33 @@ export function EditShepherdDialog({
     api.userAssignments.getPastors,
     token ? { token } : "skip"
   );
+  const regions = useQuery(
+    api.regions.listRegionsForSelect,
+    token ? { token } : "skip"
+  );
+  const shepherdBacentas = useQuery(
+    api.regions.getBacentasForShepherd,
+    token && open ? { token, shepherdId: user._id } : "skip"
+  );
+  const [selectedRegionId, setSelectedRegionId] = React.useState<Id<"regions"> | null>(null);
+  const [selectedBacentaIds, setSelectedBacentaIds] = React.useState<Id<"bacentas">[]>([]);
+  const bacentasInRegion = useQuery(
+    api.regions.listBacentasByRegionForSelect,
+    token && selectedRegionId ? { token, regionId: selectedRegionId } : "skip"
+  );
+  const setShepherdBacentas = useMutation(api.regions.setShepherdBacentas);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const list = shepherdBacentas?.filter((b): b is NonNullable<typeof b> => b != null) ?? [];
+    if (list.length > 0) {
+      setSelectedBacentaIds(list.map((b) => b._id));
+      setSelectedRegionId(list[0].regionId);
+    } else if (shepherdBacentas && shepherdBacentas.length === 0) {
+      setSelectedBacentaIds([]);
+      setSelectedRegionId(null);
+    }
+  }, [open, user._id, shepherdBacentas]);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
@@ -128,7 +154,6 @@ export function EditShepherdDialog({
         ? new Date(user.commissioningDate).toISOString().split("T")[0]
         : "",
       occupation: user.occupation || "",
-      assignedZone: user.assignedZone || "",
       status: user.status || "active",
       overseerId: user.overseerId || "none",
       educationalBackground: user.educationalBackground || "",
@@ -164,7 +189,6 @@ export function EditShepherdDialog({
         ? new Date(user.commissioningDate).toISOString().split("T")[0]
         : "",
       occupation: user.occupation || "",
-      assignedZone: user.assignedZone || "",
       status: user.status || "active",
       overseerId: user.overseerId || "none",
       educationalBackground: user.educationalBackground || "",
@@ -275,6 +299,7 @@ export function EditShepherdDialog({
       }
 
       await updateUserProfile({ token, userId: user._id, ...submitData });
+      await setShepherdBacentas({ token, shepherdId: user._id, bacentaIds: selectedBacentaIds });
       toast.success("Shepherd updated successfully");
       setPhotoFile(null);
       onOpenChange(false);
@@ -484,20 +509,6 @@ export function EditShepherdDialog({
 
                 <FormField
                   control={form.control}
-                  name="assignedZone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Assigned Zone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Zone A" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="status"
                   render={({ field }) => (
                     <FormItem>
@@ -544,6 +555,62 @@ export function EditShepherdDialog({
                     </FormItem>
                   )}
                 />
+
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Region</Label>
+                  <Select
+                    value={selectedRegionId ?? "none"}
+                    onValueChange={(v) => {
+                      setSelectedRegionId(v === "none" ? null : (v as Id<"regions">));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select region" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {regions?.map((r) => (
+                        <SelectItem key={r._id} value={r._id}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Select a region to assign or change bacentas. A shepherd can have multiple bacentas.
+                  </p>
+                </div>
+
+                {selectedRegionId && (
+                  <div className="md:col-span-2 space-y-2">
+                    <Label>Bacentas</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
+                      {bacentasInRegion?.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No bacentas in this region.</p>
+                      ) : (
+                        bacentasInRegion?.map((b) => (
+                          <div key={b._id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-bacenta-${b._id}`}
+                              checked={selectedBacentaIds.includes(b._id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedBacentaIds((prev) =>
+                                  checked ? [...prev, b._id] : prev.filter((id) => id !== b._id)
+                                );
+                              }}
+                            />
+                            <label
+                              htmlFor={`edit-bacenta-${b._id}`}
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              {b.name}
+                            </label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
