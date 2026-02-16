@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx convex deploy --cmd 'npm run build'"
+  "buildCommand": "[ \"$VERCEL_ENV\" = \"production\" ] && npx convex deploy --cmd 'npm run build' || npm run build"
 }
