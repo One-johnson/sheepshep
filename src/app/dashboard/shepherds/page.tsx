@@ -281,8 +281,7 @@ export default function ShepherdsPage() {
       (s) =>
         s.name.toLowerCase().includes(query) ||
         s.email.toLowerCase().includes(query) ||
-        s.phone?.toLowerCase().includes(query) ||
-        s.assignedZone?.toLowerCase().includes(query)
+        s.phone?.toLowerCase().includes(query)
     );
   }, [shepherds, searchQuery]);
 
@@ -303,7 +302,6 @@ export default function ShepherdsPage() {
       "Phone",
       "WhatsApp",
       "Preferred Name",
-      "Zone",
       "Status",
       "Members Count",
       "Occupation",
@@ -320,7 +318,6 @@ export default function ShepherdsPage() {
         shepherd.phone || "",
         shepherd.whatsappNumber || "",
         shepherd.preferredName || "",
-        shepherd.assignedZone || "",
         shepherd.status || "",
         memberCount.toString(),
         shepherd.occupation || "",
@@ -391,7 +388,6 @@ export default function ShepherdsPage() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Zone</th>
                 <th>Status</th>
                 <th>Members</th>
                 <th>Occupation</th>
@@ -406,7 +402,6 @@ export default function ShepherdsPage() {
                   <td>${shepherd.name || ""}</td>
                   <td>${shepherd.email || ""}</td>
                   <td>${shepherd.phone || "N/A"}</td>
-                  <td>${shepherd.assignedZone || "N/A"}</td>
                   <td>${shepherd.status || "N/A"}</td>
                   <td>${memberCount}</td>
                   <td>${shepherd.occupation || "N/A"}</td>
@@ -623,17 +618,6 @@ export default function ShepherdsPage() {
                           </div>
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground flex items-center gap-2">
-                              <MapPin className="h-4 w-4" />
-                              Zone
-                            </span>
-                            {shepherd.assignedZone ? (
-                              <Badge variant="outline" className="text-xs">{shepherd.assignedZone}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">N/A</span>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground flex items-center gap-2">
                               <UserCheck className="h-4 w-4" />
                               Members
                             </span>
@@ -724,7 +708,6 @@ export default function ShepherdsPage() {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Zone</TableHead>
                       <TableHead>Members</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
@@ -760,13 +743,6 @@ export default function ShepherdsPage() {
                           </TableCell>
                           <TableCell>{shepherd.email}</TableCell>
                           <TableCell>{shepherd.phone || "N/A"}</TableCell>
-                          <TableCell>
-                            {shepherd.assignedZone ? (
-                              <Badge variant="outline">{shepherd.assignedZone}</Badge>
-                            ) : (
-                              "N/A"
-                            )}
-                          </TableCell>
                           <TableCell>
                             <MembersHoverCard
                               shepherdId={shepherd._id}

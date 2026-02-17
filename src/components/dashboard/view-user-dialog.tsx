@@ -42,9 +42,7 @@ interface ViewUserDialogProps {
     qualification?: string;
     yearsInMinistry?: number;
     ministryFocus?: string[];
-    supervisedZones?: string[];
     occupation?: string;
-    assignedZone?: string;
     status?: "active" | "on_leave" | "inactive";
     notes?: string;
     profilePhotoId?: Id<"_storage">;
@@ -269,7 +267,6 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                 ${user.yearsInMinistry !== undefined ? `<div class="field"><div class="field-label">Years in Ministry</div><div class="field-value">${user.yearsInMinistry} years</div></div>` : ""}
                 ${user.homeAddress ? `<div class="field full-width"><div class="field-label">Home Address</div><div class="field-value">${user.homeAddress}</div></div>` : ""}
                 ${user.ministryFocus && user.ministryFocus.length > 0 ? `<div class="field full-width"><div class="field-label">Ministry Focus</div><div class="field-value">${user.ministryFocus.join(", ")}</div></div>` : ""}
-                ${user.supervisedZones && user.supervisedZones.length > 0 ? `<div class="field full-width"><div class="field-label">Supervised Zones</div><div class="field-value">${user.supervisedZones.join(", ")}</div></div>` : ""}
               </div>
             </div>
             ` : ""}
@@ -280,7 +277,6 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
               <div class="grid">
                 ${user.commissioningDate ? `<div class="field"><div class="field-label">Commissioning Date</div><div class="field-value">${formatDate(user.commissioningDate)}</div></div>` : ""}
                 ${user.occupation ? `<div class="field"><div class="field-label">Occupation</div><div class="field-value">${user.occupation}</div></div>` : ""}
-                ${user.assignedZone ? `<div class="field"><div class="field-label">Assigned Zone</div><div class="field-value">${user.assignedZone}</div></div>` : ""}
               </div>
             </div>
             ` : ""}
@@ -478,12 +474,6 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                       <div style={{ fontSize: "14px", color: "#333" }}>{user.ministryFocus.join(", ")}</div>
                     </div>
                   )}
-                  {user.supervisedZones && user.supervisedZones.length > 0 && (
-                    <div style={{ marginBottom: "15px", gridColumn: "1 / -1" }}>
-                      <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px", fontWeight: "bold" }}>Supervised Zones</div>
-                      <div style={{ fontSize: "14px", color: "#333" }}>{user.supervisedZones.join(", ")}</div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -503,12 +493,6 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                     <div style={{ marginBottom: "15px" }}>
                       <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px", fontWeight: "bold" }}>Occupation</div>
                       <div style={{ fontSize: "14px", color: "#333" }}>{user.occupation}</div>
-                    </div>
-                  )}
-                  {user.assignedZone && (
-                    <div style={{ marginBottom: "15px" }}>
-                      <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px", fontWeight: "bold" }}>Assigned Zone</div>
-                      <div style={{ fontSize: "14px", color: "#333" }}>{user.assignedZone}</div>
                     </div>
                   )}
                 </div>
@@ -702,20 +686,6 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                     </div>
                   )}
 
-                  {user.supervisedZones && user.supervisedZones.length > 0 && (
-                    <div className="space-y-1 md:col-span-2">
-                      <div className="text-sm font-medium text-muted-foreground">
-                        Supervised Zones
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {user.supervisedZones.map((zone, index) => (
-                          <Badge key={index} variant="outline">
-                            {zone}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </>
@@ -744,15 +714,6 @@ export function ViewUserDialog({ open, onOpenChange, user }: ViewUserDialogProps
                     <div className="space-y-1">
                       <div className="text-sm font-medium text-muted-foreground">Occupation</div>
                       <div>{user.occupation}</div>
-                    </div>
-                  )}
-
-                  {user.assignedZone && (
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium text-muted-foreground">
-                        Assigned Zone
-                      </div>
-                      <div>{user.assignedZone}</div>
                     </div>
                   )}
                 </div>

@@ -52,7 +52,6 @@ const pastorSchema = z.object({
   qualification: z.string().optional(),
   yearsInMinistry: z.number().min(0).optional(),
   ministryFocus: z.array(z.string()).optional(),
-  supervisedZones: z.array(z.string()).optional(),
   notes: z.string().optional(),
   // Marital information
   maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
@@ -80,7 +79,6 @@ interface EditPastorDialogProps {
     qualification?: string;
     yearsInMinistry?: number;
     ministryFocus?: string[];
-    supervisedZones?: string[];
     notes?: string;
     profilePhotoId?: Id<"_storage">;
     maritalStatus?: "single" | "married" | "divorced" | "widowed";
@@ -126,7 +124,6 @@ export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogP
       qualification: user.qualification || "",
       yearsInMinistry: user.yearsInMinistry,
       ministryFocus: user.ministryFocus || [],
-      supervisedZones: user.supervisedZones || [],
       notes: user.notes || "",
       maritalStatus: user.maritalStatus,
       weddingAnniversaryDate: user.weddingAnniversaryDate
@@ -163,7 +160,6 @@ export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogP
       qualification: user.qualification || "",
       yearsInMinistry: user.yearsInMinistry,
       ministryFocus: user.ministryFocus || [],
-      supervisedZones: user.supervisedZones || [],
       notes: user.notes || "",
     });
     // Reset photo preview to existing photo

@@ -954,12 +954,10 @@ export const updateUserProfile = mutation({
     qualification: v.optional(v.string()),
     yearsInMinistry: v.optional(v.number()),
     ministryFocus: v.optional(v.array(v.string())),
-    supervisedZones: v.optional(v.array(v.string())),
     notes: v.optional(v.string()),
     // Shepherd-specific fields
     commissioningDate: v.optional(v.number()),
     occupation: v.optional(v.string()),
-    assignedZone: v.optional(v.string()),
     educationalBackground: v.optional(v.string()),
     status: v.optional(
       v.union(v.literal("active"), v.literal("on_leave"), v.literal("inactive"))

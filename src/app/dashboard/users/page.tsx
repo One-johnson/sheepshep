@@ -89,11 +89,9 @@ type UserEntry = {
   qualification?: string;
   yearsInMinistry?: number;
   ministryFocus?: string[];
-  supervisedZones?: string[];
   notes?: string;
   commissioningDate?: number;
   occupation?: string;
-  assignedZone?: string;
   educationalBackground?: string;
   status?: "active" | "on_leave" | "inactive";
   overseerId?: Id<"users">;
@@ -331,7 +329,6 @@ export default function UsersPage() {
       "Qualification",
       "Years in Ministry",
       "Occupation",
-      "Assigned Zone",
       "Educational Background",
       "Status",
       "Active",
@@ -356,7 +353,6 @@ export default function UsersPage() {
       user.qualification || "",
       user.yearsInMinistry !== undefined ? user.yearsInMinistry.toString() : "",
       user.occupation || "",
-      user.assignedZone || "",
       user.educationalBackground || "",
       user.status || "",
       user.isActive ? "Yes" : "No",

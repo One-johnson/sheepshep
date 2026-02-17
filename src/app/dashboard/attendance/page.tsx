@@ -1611,7 +1611,7 @@ export default function AttendancePage() {
                           <TableCell>{shepherd.name}</TableCell>
                           <TableCell>{shepherd.email}</TableCell>
                           <TableCell>{shepherd.phone || "N/A"}</TableCell>
-                          <TableCell>{shepherd.assignedZone || "N/A"}</TableCell>
+                          <TableCell>—</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
