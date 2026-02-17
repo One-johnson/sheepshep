@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,6 +9,9 @@ import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Mail, Lock, Loader2, Home } from "lucide-react";
 import Link from "next/link";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,18 +60,37 @@ export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentScriptureIndex, setCurrentScriptureIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const login = useMutation(api.auth.login);
 
-  // Rotate scriptures every 5 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentScriptureIndex((prev) => (prev + 1) % loginScriptures.length);
-    }, 5000);
+  // Embla carousel setup for scriptures
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    { loop: true, duration: 20 },
+    [Autoplay({ delay: 5000, stopOnInteraction: false })]
+  );
 
-    return () => clearInterval(interval);
-  }, []);
+  const scrollTo = useCallback(
+    (index: number) => {
+      if (emblaApi) emblaApi.scrollTo(index);
+    },
+    [emblaApi]
+  );
+
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap());
+    };
+
+    emblaApi.on("select", onSelect);
+    onSelect();
+
+    return () => {
+      emblaApi.off("select", onSelect);
+    };
+  }, [emblaApi]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -123,14 +145,43 @@ export default function LoginPage() {
       {/* Left Side - Login Form */}
       <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-8 sm:px-12 lg:px-16">
         <div className="mx-auto w-full max-w-sm space-y-6">
-          {/* Scripture */}
-          <div className="rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-4 text-center transition-all duration-500">
-            <p className="text-sm italic text-blue-900 dark:text-blue-100 leading-relaxed">
-              &quot;{loginScriptures[currentScriptureIndex].verse}&quot;
-            </p>
-            <p className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
-              {loginScriptures[currentScriptureIndex].reference}
-            </p>
+          {/* Scripture Carousel */}
+          <div className="relative overflow-hidden rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+            <div className="embla" ref={emblaRef}>
+              <div className="embla__container flex">
+                {loginScriptures.map((scripture, index) => (
+                  <div
+                    key={index}
+                    className="embla__slide min-w-0 flex-shrink-0 flex-grow-0 basis-full"
+                  >
+                    <div className="p-4 text-center">
+                      <p className="text-sm italic text-blue-900 dark:text-blue-100 leading-relaxed">
+                        &quot;{scripture.verse}&quot;
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                        {scripture.reference}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Dots Indicator */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {loginScriptures.map((_, index) => (
+                <button
+                  key={index}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    index === selectedIndex
+                      ? "w-6 bg-blue-700 dark:bg-blue-300"
+                      : "w-1.5 bg-blue-400/50 dark:bg-blue-600/50"
+                  )}
+                  onClick={() => scrollTo(index)}
+                  aria-label={`Go to scripture ${index + 1}`}
+                />
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2 text-center lg:text-left">

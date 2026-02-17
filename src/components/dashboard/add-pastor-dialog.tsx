@@ -136,7 +136,7 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       "qualification",
       "yearsInMinistry",
       "ministryFocus",
-      "regionId",
+      "regionName",
       "status",
       "notes",
       "maritalStatus",
@@ -160,7 +160,7 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       "Master of Divinity",
       "15",
       "Youth,Teaching",
-      "region-id-here",
+      "North Region",
       "active",
       "Notes here",
       "married",
@@ -223,8 +223,10 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       years_in_ministry: "yearsInMinistry",
       ministryfocus: "ministryFocus",
       ministry_focus: "ministryFocus",
-      regionid: "regionId",
-      region_id: "regionId",
+      regionname: "regionName",
+      region_name: "regionName",
+      regionid: "regionName", // Support old header name for backward compatibility
+      region_id: "regionName",
       status: "status",
       notes: "notes",
       maritalstatus: "maritalStatus",
@@ -256,22 +258,44 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const text = e.target?.result as string;
+          const text = (e.target?.result as string).replace(/^\uFEFF/, "");
           const lines = text.split("\n").filter((line) => line.trim());
           if (lines.length < 2) {
             reject(new Error("CSV file must have at least a header row and one data row"));
             return;
           }
 
-          const headers = lines[0]
-            .split(",")
-            .map((h) => h.trim().replace(/^"|"$/g, ""));
+          const splitCsvLine = (line: string): string[] => {
+            const out: string[] = [];
+            let cur = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+              const ch = line[i];
+              if (ch === '"') {
+                // Escaped quote
+                if (inQuotes && line[i + 1] === '"') {
+                  cur += '"';
+                  i++;
+                } else {
+                  inQuotes = !inQuotes;
+                }
+              } else if (ch === "," && !inQuotes) {
+                out.push(cur.trim());
+                cur = "";
+              } else {
+                cur += ch;
+              }
+            }
+            out.push(cur.trim());
+            return out;
+          };
+
+          const headers = splitCsvLine(lines[0]).map((h) => h.trim());
           const data: any[] = [];
 
           for (let i = 1; i < lines.length; i++) {
-            const values = lines[i]
-              .split(",")
-              .map((v) => v.trim().replace(/^"|"$/g, ""));
+            const values = splitCsvLine(lines[i].replace(/\r$/, ""));
             const row: any = { role: "pastor" };
 
             headers.forEach((header, index) => {
@@ -291,6 +315,28 @@ export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): R
                   row[camelCaseKey] = value.split(",").map((v) => v.trim()).filter(Boolean);
                 } else if (camelCaseKey === "childrenCount") {
                   row.childrenCount = parseInt(value) || 0;
+                } else if (camelCaseKey === "maritalStatus") {
+                  // Validate maritalStatus enum values
+                  const validStatuses = ["single", "married", "divorced", "widowed"];
+                  const normalizedValue = value.toLowerCase().trim();
+                  if (validStatuses.includes(normalizedValue)) {
+                    row[camelCaseKey] = normalizedValue;
+                  }
+                  // If invalid, skip it (don't assign)
+                } else if (camelCaseKey === "gender") {
+                  // Validate gender enum values
+                  const validGenders = ["male", "female"];
+                  const normalizedValue = value.toLowerCase().trim();
+                  if (validGenders.includes(normalizedValue)) {
+                    row[camelCaseKey] = normalizedValue;
+                  }
+                } else if (camelCaseKey === "status") {
+                  // Validate status enum values
+                  const validStatuses = ["active", "on_leave", "inactive"];
+                  const normalizedValue = value.toLowerCase().trim();
+                  if (validStatuses.includes(normalizedValue)) {
+                    row[camelCaseKey] = normalizedValue;
+                  }
                 } else {
                   row[camelCaseKey] = value;
                 }
