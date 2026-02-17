@@ -315,6 +315,8 @@ export const bulkAdd = mutation({
         ),
         overseerId: v.optional(v.id("users")),
         profilePhotoId: v.optional(v.id("_storage")),
+        // Pastor assignment (optional; only used when role === "pastor")
+        regionName: v.optional(v.string()),
         // Marital information
         maritalStatus: v.optional(
           v.union(
@@ -358,6 +360,21 @@ export const bulkAdd = mutation({
           continue;
         }
 
+        // If importing a pastor with an assigned region, validate region exists first
+        let regionId: Id<"regions"> | undefined = undefined;
+        if (userData.role === "pastor" && userData.regionName) {
+          // Look up region by name (case-insensitive)
+          const allRegions = await ctx.db.query("regions").collect();
+          const region = allRegions.find(
+            (r) => r.name.toLowerCase().trim() === userData.regionName!.toLowerCase().trim()
+          );
+          if (!region) {
+            errors.push({ email: userData.email, error: `Region "${userData.regionName}" not found` });
+            continue;
+          }
+          regionId = region._id;
+        }
+
         // Hash password
         const passwordHash = bcrypt.hashSync(userData.password, 10);
 
@@ -395,6 +412,14 @@ export const bulkAdd = mutation({
           spouseOccupation: userData.spouseOccupation,
           childrenCount: userData.childrenCount,
         });
+
+        // If importing a pastor with an assigned region, set region.pastorId
+        if (regionId) {
+          await ctx.db.patch(regionId, {
+            pastorId: userId,
+            updatedAt: Date.now(),
+          });
+        }
 
         created.push(userId);
       } catch (error: any) {

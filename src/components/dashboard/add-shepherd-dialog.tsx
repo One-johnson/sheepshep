@@ -311,22 +311,44 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const text = e.target?.result as string;
+          const text = (e.target?.result as string).replace(/^\uFEFF/, "");
           const lines = text.split("\n").filter((line) => line.trim());
           if (lines.length < 2) {
             reject(new Error("CSV file must have at least a header row and one data row"));
             return;
           }
 
-          const headers = lines[0]
-            .split(",")
-            .map((h) => h.trim().replace(/^"|"$/g, ""));
+          const splitCsvLine = (line: string): string[] => {
+            const out: string[] = [];
+            let cur = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+              const ch = line[i];
+              if (ch === '"') {
+                // Escaped quote
+                if (inQuotes && line[i + 1] === '"') {
+                  cur += '"';
+                  i++;
+                } else {
+                  inQuotes = !inQuotes;
+                }
+              } else if (ch === "," && !inQuotes) {
+                out.push(cur.trim());
+                cur = "";
+              } else {
+                cur += ch;
+              }
+            }
+            out.push(cur.trim());
+            return out;
+          };
+
+          const headers = splitCsvLine(lines[0]).map((h) => h.trim());
           const data: any[] = [];
 
           for (let i = 1; i < lines.length; i++) {
-            const values = lines[i]
-              .split(",")
-              .map((v) => v.trim().replace(/^"|"$/g, ""));
+            const values = splitCsvLine(lines[i].replace(/\r$/, ""));
             const row: any = { role: "shepherd" };
 
             headers.forEach((header, index) => {
@@ -344,6 +366,28 @@ export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps
                   row.overseerId = value as any;
                 } else if (camelCaseKey === "childrenCount") {
                   row.childrenCount = parseInt(value) || 0;
+                } else if (camelCaseKey === "maritalStatus") {
+                  // Validate maritalStatus enum values
+                  const validStatuses = ["single", "married", "divorced", "widowed"];
+                  const normalizedValue = value.toLowerCase().trim();
+                  if (validStatuses.includes(normalizedValue)) {
+                    row[camelCaseKey] = normalizedValue;
+                  }
+                  // If invalid, skip it (don't assign)
+                } else if (camelCaseKey === "gender") {
+                  // Validate gender enum values
+                  const validGenders = ["male", "female"];
+                  const normalizedValue = value.toLowerCase().trim();
+                  if (validGenders.includes(normalizedValue)) {
+                    row[camelCaseKey] = normalizedValue;
+                  }
+                } else if (camelCaseKey === "status") {
+                  // Validate status enum values
+                  const validStatuses = ["active", "on_leave", "inactive"];
+                  const normalizedValue = value.toLowerCase().trim();
+                  if (validStatuses.includes(normalizedValue)) {
+                    row[camelCaseKey] = normalizedValue;
+                  }
                 } else {
                   row[camelCaseKey] = value;
                 }

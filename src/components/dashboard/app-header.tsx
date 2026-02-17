@@ -10,6 +10,7 @@ import {
   LogOut,
   ChevronDown,
   Bell,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
@@ -24,6 +25,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Image from "next/image";
 import Link from "next/link";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -63,6 +74,8 @@ export function AppHeader() {
   const router = useRouter();
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   
   const currentUser = useQuery(
@@ -99,7 +112,12 @@ export function AppHeader() {
 
   const logout = useMutation(api.auth.logout);
 
-  const handleLogout = async () => {
+  const handleLogoutClick = () => {
+    setLogoutDialogOpen(true);
+  };
+
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
     try {
       if (token) {
         await logout({ token });
@@ -109,6 +127,8 @@ export function AppHeader() {
       router.push("/login");
     } catch (error: any) {
       toast.error(error.message || "Failed to logout");
+      setIsLoggingOut(false);
+      setLogoutDialogOpen(false);
     }
   };
 
@@ -274,7 +294,7 @@ export function AppHeader() {
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                    <DropdownMenuItem onClick={handleLogoutClick} variant="destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       Logout
                     </DropdownMenuItem>
@@ -324,6 +344,41 @@ export function AppHeader() {
           token={token}
         />
       )}
+
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div>Are you sure you want to logout?</div>
+                <div className="rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-4 text-center mt-4">
+                  <div className="text-sm italic text-blue-900 dark:text-blue-100 leading-relaxed">
+                    &quot;The Lord bless thee, and keep thee: The Lord make his face shine upon thee, and be gracious unto thee: The Lord lift up his countenance upon thee, and give thee peace.&quot;
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    Numbers 6:24-26 (KJV)
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLogout} variant="destructive" disabled={isLoggingOut}>
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging out...
+                </>
+              ) : (
+                "Logout"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 }
