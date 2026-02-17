@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import * as bcrypt from "bcryptjs";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
@@ -611,45 +611,55 @@ export const login = mutation({
     password: v.string(),
   },
   handler: async (ctx, args) => {
-    // Find user by email
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
+    try {
+      // Find user by email
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", args.email))
+        .first();
 
-    if (!user) {
-      throw new Error("Invalid email or password");
+      if (!user) {
+        throw new ConvexError({ code: "INVALID_CREDENTIALS", message: "Invalid email or password" });
+      }
+
+      if (!user.isActive) {
+        throw new ConvexError({ code: "ACCOUNT_INACTIVE", message: "Account is inactive" });
+      }
+
+      // Verify password using bcryptjs
+      if (!bcrypt.compareSync(args.password, user.passwordHash)) {
+        throw new ConvexError({ code: "INVALID_CREDENTIALS", message: "Invalid email or password" });
+      }
+
+      // Generate session token
+      const token = generateSessionToken();
+      const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+      // Store session in database
+      await ctx.db.insert("sessions", {
+        userId: user._id,
+        token,
+        expiresAt,
+        createdAt: Date.now(),
+      });
+
+      // Return user data (without password hash)
+      const { passwordHash: _, ...userWithoutPassword } = user;
+
+      return {
+        token,
+        user: userWithoutPassword,
+        expiresAt,
+      };
+    } catch (err) {
+      // Re-throw ConvexErrors so client receives the message in production
+      if (err instanceof ConvexError) throw err;
+      // Unexpected errors (e.g. DB/serialization) - send a safe message to the client
+      throw new ConvexError({
+        code: "LOGIN_FAILED",
+        message: "Unable to sign in. Please try again.",
+      });
     }
-
-    if (!user.isActive) {
-      throw new Error("Account is inactive");
-    }
-
-    // Verify password using bcryptjs
-    if (!bcrypt.compareSync(args.password, user.passwordHash)) {
-      throw new Error("Invalid email or password");
-    }
-
-    // Generate session token
-    const token = generateSessionToken();
-    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-
-    // Store session in database
-    await ctx.db.insert("sessions", {
-      userId: user._id,
-      token,
-      expiresAt,
-      createdAt: Date.now(),
-    });
-
-    // Return user data (without password hash)
-    const { passwordHash: _, ...userWithoutPassword } = user;
-
-    return {
-      token,
-      user: userWithoutPassword,
-      expiresAt,
-    };
   },
 });
 
