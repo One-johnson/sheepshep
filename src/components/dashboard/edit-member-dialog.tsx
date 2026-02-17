@@ -138,11 +138,6 @@ export function EditMemberDialog({
     api.regions.listBacentasForSelect,
     token ? { token } : "skip"
   );
-  const selectedRegionId = form.watch("regionId");
-  const bacentasInRegion = useQuery(
-    api.regions.listBacentasByRegionForSelect,
-    token && selectedRegionId && selectedRegionId !== "" ? { token, regionId: selectedRegionId as Id<"regions"> } : "skip"
-  );
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
@@ -190,6 +185,12 @@ export function EditMemberDialog({
       childrenCount: member.childrenCount,
     },
   });
+
+  const selectedRegionId = form.watch("regionId");
+  const bacentasInRegion = useQuery(
+    api.regions.listBacentasByRegionForSelect,
+    token && selectedRegionId && selectedRegionId !== "" ? { token, regionId: selectedRegionId as Id<"regions"> } : "skip"
+  );
 
   const maritalStatus = form.watch("maritalStatus");
 
