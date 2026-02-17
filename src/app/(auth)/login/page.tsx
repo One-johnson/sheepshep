@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "../../../../convex/_generated/api";
 import { Mail, Lock, Loader2, Home } from "lucide-react";
 import Link from "next/link";
@@ -118,8 +119,14 @@ export default function LoginPage() {
         });
         router.push("/dashboard");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to login. Please try again.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof ConvexError && typeof (error.data as { message?: string })?.message === "string"
+          ? (error.data as { message: string }).message
+          : error instanceof Error
+            ? error.message
+            : "Failed to login. Please try again.";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
