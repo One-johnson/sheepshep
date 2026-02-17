@@ -262,13 +262,6 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {currentUser.assignedZone && (
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-muted-foreground">Assigned Zone</div>
-                <div className="font-medium">{currentUser.assignedZone}</div>
-              </div>
-            )}
-
             {currentUser.status && (
               <div className="space-y-1">
                 <div className="text-sm font-medium text-muted-foreground">Status</div>

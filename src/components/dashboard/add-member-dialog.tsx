@@ -67,6 +67,7 @@ const memberSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["new_convert", "first_timer", "established", "visitor", "inactive"]).optional(),
   shepherdId: z.string().min(1, "Shepherd is required"),
+  regionId: z.string().optional(), // Select region to show bacentas in that region
   bacentaId: z.string().min(1, "Bacenta is required"),
   // Marital information
   maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
@@ -94,11 +95,6 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
   const regions = useQuery(
     api.regions.listRegionsForSelect,
     token ? { token } : "skip"
-  );
-  const [selectedRegionId, setSelectedRegionId] = React.useState<Id<"regions"> | null>(null);
-  const bacentasInRegion = useQuery(
-    api.regions.listBacentasByRegionForSelect,
-    token && selectedRegionId ? { token, regionId: selectedRegionId } : "skip"
   );
   const allBacentas = useQuery(
     api.regions.listBacentasForSelect,
@@ -137,6 +133,7 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       notes: "",
       status: "established",
       shepherdId: "",
+      regionId: "",
       bacentaId: "",
       maritalStatus: undefined,
       weddingAnniversaryDate: "",
@@ -144,6 +141,12 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
       childrenCount: undefined,
     },
   });
+
+  const selectedRegionId = form.watch("regionId");
+  const bacentasInRegion = useQuery(
+    api.regions.listBacentasByRegionForSelect,
+    token && selectedRegionId && selectedRegionId !== "" ? { token, regionId: selectedRegionId as Id<"regions"> } : "skip"
+  );
 
   const maritalStatus = form.watch("maritalStatus");
 
@@ -870,51 +873,61 @@ export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): R
                     />
                     <FormField
                       control={form.control}
+                      name="regionId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Region</FormLabel>
+                          <Select
+                            value={field.value || ""}
+                            onValueChange={(value) => {
+                              field.onChange(value || "");
+                              form.setValue("bacentaId", ""); // Reset bacenta when region changes
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select region" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {regions?.map((region) => (
+                                <SelectItem key={region._id} value={region._id}>
+                                  {region.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Select a region to show bacentas in that region below.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
                       name="bacentaId"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Bacenta *</FormLabel>
-                          <div className="space-y-2">
-                            <Select
-                              value={selectedRegionId || ""}
-                              onValueChange={(value) => {
-                                setSelectedRegionId(value as Id<"regions">);
-                                form.setValue("bacentaId", ""); // Reset bacenta when region changes
-                              }}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select region first" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {regions?.map((region) => (
-                                  <SelectItem key={region._id} value={region._id}>
-                                    {region.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {selectedRegionId && (
-                              <Select
-                                onValueChange={field.onChange}
-                                value={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select bacenta" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {bacentasInRegion?.map((bacenta) => (
-                                    <SelectItem key={bacenta._id} value={bacenta._id}>
-                                      {bacenta.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </div>
+                          <Select
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            disabled={!selectedRegionId || selectedRegionId === ""}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={selectedRegionId ? "Select bacenta" : "Select a region first"} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {bacentasInRegion?.map((bacenta) => (
+                                <SelectItem key={bacenta._id} value={bacenta._id}>
+                                  {bacenta.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}

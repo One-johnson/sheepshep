@@ -95,11 +95,6 @@ export default function AssignmentsPage() {
     api.userAssignments.getPastors,
     token && (isAdmin || isPastor) ? { token } : "skip"
   );
-  const allZones = useQuery(
-    api.userAssignments.getAllZones,
-    token && (isAdmin || isPastor) ? { token } : "skip"
-  );
-  
   // Member assignment queries
   const members = useQuery(
     api.members.list,
@@ -119,20 +114,14 @@ export default function AssignmentsPage() {
   // State
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedPastorFilter, setSelectedPastorFilter] = React.useState<string>("all");
-  const [selectedZoneFilter, setSelectedZoneFilter] = React.useState<string>("all");
   const [showUnassignedOnly, setShowUnassignedOnly] = React.useState(false);
   const [selectedShepherds, setSelectedShepherds] = React.useState<Set<Id<"users">>>(new Set());
   
   // Dialog states
   const [assignDialogOpen, setAssignDialogOpen] = React.useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = React.useState(false);
-  const [zoneAssignDialogOpen, setZoneAssignDialogOpen] = React.useState(false);
-  const [supervisedZonesDialogOpen, setSupervisedZonesDialogOpen] = React.useState(false);
   const [selectedPastorForAssign, setSelectedPastorForAssign] = React.useState<Id<"users"> | "">("");
   const [selectedShepherdForAssign, setSelectedShepherdForAssign] = React.useState<Id<"users"> | "">("");
-  const [selectedZone, setSelectedZone] = React.useState("");
-  const [selectedSupervisedZones, setSelectedSupervisedZones] = React.useState<string[]>([]);
-  const [selectedPastorForZones, setSelectedPastorForZones] = React.useState<Id<"users"> | "">("");
   
   // Member assignment dialog states
   const [memberAssignDialogOpen, setMemberAssignDialogOpen] = React.useState(false);
@@ -161,8 +150,6 @@ export default function AssignmentsPage() {
   const assignShepherd = useMutation(api.userAssignments.assignShepherdToPastor);
   const unassignShepherd = useMutation(api.userAssignments.unassignShepherd);
   const bulkAssignShepherds = useMutation(api.userAssignments.bulkAssignShepherds);
-  const assignZone = useMutation(api.userAssignments.assignZoneToShepherd);
-  const assignSupervisedZones = useMutation(api.userAssignments.assignSupervisedZonesToPastor);
   
   // Member assignment mutations
   const assignMember = useMutation(api.memberAssignments.assignMemberToShepherd);
@@ -258,44 +245,6 @@ export default function AssignmentsPage() {
       setSelectedPastorForAssign("");
     } catch (error: any) {
       toast.error(error.message || "Failed to assign shepherds");
-    }
-  };
-
-  // Handle zone assignment
-  const handleAssignZone = async (shepherdId: Id<"users">, zone: string) => {
-    try {
-      await assignZone({
-        token: token!,
-        shepherdId,
-        zone,
-      });
-      toast.success("Zone assigned successfully");
-      setZoneAssignDialogOpen(false);
-      setSelectedZone("");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to assign zone");
-    }
-  };
-
-  // Handle supervised zones assignment
-  const handleAssignSupervisedZones = async () => {
-    if (!selectedPastorForZones) {
-      toast.error("Please select a pastor");
-      return;
-    }
-
-    try {
-      await assignSupervisedZones({
-        token: token!,
-        pastorId: selectedPastorForZones as Id<"users">,
-        zones: selectedSupervisedZones,
-      });
-      toast.success("Supervised zones assigned successfully");
-      setSupervisedZonesDialogOpen(false);
-      setSelectedSupervisedZones([]);
-      setSelectedPastorForZones("");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to assign supervised zones");
     }
   };
 
@@ -728,7 +677,7 @@ export default function AssignmentsPage() {
             <p className="text-sm sm:text-base text-muted-foreground">
               {isShepherd
                 ? "Your visitation and prayer assignments"
-                : "Manage organizational structure and zone assignments"}
+                : "Manage organizational structure and assignments"}
             </p>
           </div>
         </div>
@@ -817,10 +766,6 @@ export default function AssignmentsPage() {
               <Users className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden xs:inline">Manage Shepherds</span>
               <span className="xs:hidden">Shepherds</span>
-            </TabsTrigger>
-            <TabsTrigger value="zones" className="flex-shrink-0 text-xs sm:text-sm">
-              <MapPin className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-              Zones
             </TabsTrigger>
             <TabsTrigger value="stats" className="flex-shrink-0 text-xs sm:text-sm">
               <BarChart3 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
@@ -989,22 +934,6 @@ export default function AssignmentsPage() {
                     </SelectContent>
                   </Select>
                   )}
-                  <Select
-                    value={selectedZoneFilter}
-                    onValueChange={setSelectedZoneFilter}
-                  >
-                    <SelectTrigger className="w-full sm:w-[200px] text-sm">
-                      <SelectValue placeholder="Filter by zone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Zones</SelectItem>
-                      {allZones?.map((zone) => (
-                        <SelectItem key={zone} value={zone}>
-                          {zone}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   {isAdmin && (
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -1094,19 +1023,6 @@ export default function AssignmentsPage() {
                               Unassign
                             </Button>
                           )}
-                          {isAdmin && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedShepherdForAssign(shepherd._id);
-                                setZoneAssignDialogOpen(true);
-                              }}
-                              className="flex-1 sm:flex-initial"
-                            >
-                              Zone
-                            </Button>
-                          )}
                         </div>
                       </div>
                     );
@@ -1116,36 +1032,6 @@ export default function AssignmentsPage() {
                     No shepherds found
                   </div>
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Zone Management Tab */}
-        <TabsContent value="zones" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Zone Management</CardTitle>
-                  <CardDescription>
-                    {isAdmin
-                      ? "Assign zones to shepherds and pastors"
-                      : "View zone statistics"}
-                  </CardDescription>
-                </div>
-                {isAdmin && (
-                  <Button
-                    onClick={() => setSupervisedZonesDialogOpen(true)}
-                  >
-                    Assign Supervised Zones
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Zone statistics have been replaced by regions and bacentas. Use the Regions page to manage structure.
               </div>
             </CardContent>
           </Card>
@@ -1786,135 +1672,6 @@ export default function AssignmentsPage() {
                 Cancel
               </Button>
               <Button onClick={handleBulkAssign}>Assign All</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assign Zone Dialog */}
-      <Dialog open={zoneAssignDialogOpen} onOpenChange={setZoneAssignDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Zone to Shepherd</DialogTitle>
-            <DialogDescription>
-              Select a zone to assign to the shepherd
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Zone</Label>
-              <Select value={selectedZone} onValueChange={setSelectedZone}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select or enter zone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allZones?.map((zone) => (
-                    <SelectItem key={zone} value={zone}>
-                      {zone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Or enter new zone name"
-                value={selectedZone}
-                onChange={(e) => setSelectedZone(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setZoneAssignDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (selectedShepherdForAssign && selectedZone) {
-                    handleAssignZone(
-                      selectedShepherdForAssign as Id<"users">,
-                      selectedZone
-                    );
-                  }
-                }}
-              >
-                Assign Zone
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assign Supervised Zones Dialog */}
-      <Dialog
-        open={supervisedZonesDialogOpen}
-        onOpenChange={setSupervisedZonesDialogOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Supervised Zones to Pastor</DialogTitle>
-            <DialogDescription>
-              Select zones that this pastor will supervise
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Pastor</Label>
-              <Select
-                value={selectedPastorForZones}
-                onValueChange={(value) =>
-                  setSelectedPastorForZones(value as Id<"users">)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select pastor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pastors?.map((pastor) => (
-                    <SelectItem key={pastor._id} value={pastor._id}>
-                      {pastor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Supervised Zones</Label>
-              <ScrollArea className="h-48 border rounded-md p-4">
-                <div className="space-y-2">
-                  {allZones?.map((zone) => (
-                    <div key={zone} className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={selectedSupervisedZones.includes(zone)}
-                        onCheckedChange={(checked: boolean) => {
-                          if (checked) {
-                            setSelectedSupervisedZones([
-                              ...selectedSupervisedZones,
-                              zone,
-                            ]);
-                          } else {
-                            setSelectedSupervisedZones(
-                              selectedSupervisedZones.filter((z) => z !== zone)
-                            );
-                          }
-                        }}
-                      />
-                      <Label>{zone}</Label>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setSupervisedZonesDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleAssignSupervisedZones}>
-                Assign Zones
-              </Button>
             </div>
           </div>
         </DialogContent>
