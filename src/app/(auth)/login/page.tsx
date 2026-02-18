@@ -8,7 +8,7 @@ import * as z from "zod";
 import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "../../../../convex/_generated/api";
-import { Mail, Lock, Loader2, Home } from "lucide-react";
+import { Mail, Lock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Form,
   FormControl,
@@ -26,9 +25,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { PasswordToggle } from "@/components/auth/password-toggle";
-import { AuthBranding } from "@/components/auth/auth-branding";
-import { ThemeToggle } from "@/components/auth/theme-toggle";
+import { AuthLayout } from "@/components/auth/auth-layout";
+import { ForgotPasswordDialog } from "@/components/auth/forgot-password-dialog";
 import { toast } from "sonner";
+import { authScriptures, defaultAuthScripture } from "@/lib/auth-scriptures";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -37,35 +37,15 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-const loginScriptures = [
-  {
-    verse: "Come to me, all you who are weary and burdened, and I will give you rest.",
-    reference: "Matthew 11:28",
-  },
-  {
-    verse: "I am the good shepherd. The good shepherd lays down his life for the sheep.",
-    reference: "John 10:11",
-  },
-  {
-    verse: "He tends his flock like a shepherd: He gathers the lambs in his arms and carries them close to his heart.",
-    reference: "Isaiah 40:11",
-  },
-];
-
-const loginScripture = {
-  verse: "Come to me, all you who are weary and burdened, and I will give you rest.",
-  reference: "Matthew 11:28",
-};
-
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   const login = useMutation(api.auth.login);
 
-  // Embla carousel setup for scriptures
   const [emblaRef, emblaApi] = useEmblaCarousel(
     { loop: true, duration: 20 },
     [Autoplay({ delay: 5000, stopOnInteraction: false })]
@@ -80,14 +60,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!emblaApi) return;
-
-    const onSelect = () => {
-      setSelectedIndex(emblaApi.selectedScrollSnap());
-    };
-
+    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
     emblaApi.on("select", onSelect);
     onSelect();
-
     return () => {
       emblaApi.off("select", onSelect);
     };
@@ -95,10 +70,7 @@ export default function LoginPage() {
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const onSubmit = async (values: LoginFormValues) => {
@@ -110,9 +82,9 @@ export default function LoginPage() {
       });
 
       if (result.token && result.user) {
-        // Store token in localStorage
         localStorage.setItem("authToken", result.token);
-        const randomScripture = loginScriptures[Math.floor(Math.random() * loginScriptures.length)];
+        const randomScripture =
+          authScriptures[Math.floor(Math.random() * authScriptures.length)];
         toast.success("Login successful!", {
           description: `"${randomScripture.verse}" - ${randomScripture.reference}`,
           duration: 5000,
@@ -121,7 +93,8 @@ export default function LoginPage() {
       }
     } catch (error: unknown) {
       const message =
-        error instanceof ConvexError && typeof (error.data as { message?: string })?.message === "string"
+        error instanceof ConvexError &&
+        typeof (error.data as { message?: string })?.message === "string"
           ? (error.data as { message: string }).message
           : error instanceof Error
             ? error.message
@@ -133,30 +106,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen relative">
-      {/* Theme Toggle - Fixed position */}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
-      {/* Back to Home Button */}
-      <div className="fixed top-4 left-4 z-50">
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/">
-            <Home className="mr-2 h-4 w-4" />
-            Back to Home
-          </Link>
-        </Button>
-      </div>
-
-      {/* Left Side - Login Form */}
+    <AuthLayout scripture={defaultAuthScripture}>
       <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-8 sm:px-12 lg:px-16">
         <div className="mx-auto w-full max-w-sm space-y-6">
-          {/* Scripture Carousel */}
           <div className="relative overflow-hidden rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
             <div className="embla" ref={emblaRef}>
               <div className="embla__container flex">
-                {loginScriptures.map((scripture, index) => (
+                {authScriptures.map((scripture, index) => (
                   <div
                     key={index}
                     className="embla__slide min-w-0 flex-shrink-0 flex-grow-0 basis-full"
@@ -173,9 +129,8 @@ export default function LoginPage() {
                 ))}
               </div>
             </div>
-            {/* Dots Indicator */}
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {loginScriptures.map((_, index) => (
+              {authScriptures.map((_, index) => (
                 <button
                   key={index}
                   className={cn(
@@ -228,7 +183,16 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Password</FormLabel>
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-primary hover:underline"
+                        onClick={() => setForgotPasswordOpen(true)}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                     <FormControl>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -279,8 +243,10 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side - Branding */}
-      <AuthBranding scripture={loginScripture} />
-    </div>
+      <ForgotPasswordDialog
+        open={forgotPasswordOpen}
+        onOpenChange={setForgotPasswordOpen}
+      />
+    </AuthLayout>
   );
 }
