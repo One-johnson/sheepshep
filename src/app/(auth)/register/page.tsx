@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "../../../../convex/_generated/api";
 import {
   Mail,
@@ -14,16 +15,14 @@ import {
   Phone,
   Loader2,
   MessageCircle,
-  Calendar,
-  MapPin,
-  Briefcase,
-  Home,
 } from "lucide-react";
 import Link from "next/link";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Form,
   FormControl,
@@ -31,7 +30,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import {
   Alert,
@@ -40,10 +38,10 @@ import {
 } from "@/components/ui/alert";
 import { PasswordToggle } from "@/components/auth/password-toggle";
 import { PasswordStrength } from "@/components/auth/password-strength";
-import { AuthBranding } from "@/components/auth/auth-branding";
-import { ThemeToggle } from "@/components/auth/theme-toggle";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
+import { authScriptures, defaultAuthScripture } from "@/lib/auth-scriptures";
 
 const passwordRequirements = [
   { text: "At least 8 characters", id: "length" },
@@ -76,23 +74,41 @@ const registerSchema = z
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-const registerScripture = {
-  verse: "He tends his flock like a shepherd: He gathers the lambs in his arms and carries them close to his heart; he gently leads those that have young.",
-  reference: "Isaiah 40:11",
-};
-
 export default function RegisterPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showApprovalAlert, setShowApprovalAlert] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [registrationStatus, setRegistrationStatus] = useState<{
     status: "pending" | "approved";
     message: string;
   } | null>(null);
 
   const register = useMutation(api.auth.register);
+
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    { loop: true, duration: 20 },
+    [Autoplay({ delay: 5000, stopOnInteraction: false })]
+  );
+
+  const scrollTo = useCallback(
+    (index: number) => {
+      if (emblaApi) emblaApi.scrollTo(index);
+    },
+    [emblaApi]
+  );
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    emblaApi.on("select", onSelect);
+    onSelect();
+    return () => {
+      emblaApi.off("select", onSelect);
+    };
+  }, [emblaApi]);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -157,33 +173,62 @@ export default function RegisterPage() {
         toast.success("Account created successfully!");
         router.push("/login");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register. Please try again.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof ConvexError &&
+        typeof (error.data as { message?: string })?.message === "string"
+          ? (error.data as { message: string }).message
+          : error instanceof Error
+            ? error.message
+            : "Failed to register. Please try again.";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen relative">
-      {/* Theme Toggle - Fixed position */}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
-      {/* Back to Home Button */}
-      <div className="fixed top-4 left-4 z-50">
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/">
-            <Home className="mr-2 h-4 w-4" />
-            Back to Home
-          </Link>
-        </Button>
-      </div>
-
-      {/* Left Side - Register Form */}
+    <AuthLayout scripture={defaultAuthScripture}>
       <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-12 sm:px-12 lg:px-16 overflow-y-auto">
         <div className="mx-auto w-full max-w-sm space-y-8">
+          {/* Scripture Carousel */}
+          <div className="relative overflow-hidden rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+            <div className="embla" ref={emblaRef}>
+              <div className="embla__container flex">
+                {authScriptures.map((scripture, index) => (
+                  <div
+                    key={index}
+                    className="embla__slide min-w-0 flex-shrink-0 flex-grow-0 basis-full"
+                  >
+                    <div className="p-4 text-center">
+                      <p className="text-sm italic text-blue-900 dark:text-blue-100 leading-relaxed">
+                        &quot;{scripture.verse}&quot;
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                        {scripture.reference}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {authScriptures.map((_, index) => (
+                <button
+                  key={index}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    index === selectedIndex
+                      ? "w-6 bg-blue-700 dark:bg-blue-300"
+                      : "w-1.5 bg-blue-400/50 dark:bg-blue-600/50"
+                  )}
+                  onClick={() => scrollTo(index)}
+                  aria-label={`Go to scripture ${index + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-2 text-center lg:text-left">
             <h2 className="text-3xl font-bold tracking-tight">Create an account</h2>
             <p className="text-muted-foreground">
@@ -451,9 +496,6 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
-
-      {/* Right Side - Branding */}
-      <AuthBranding scripture={registerScripture} />
-    </div>
+    </AuthLayout>
   );
 }
