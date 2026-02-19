@@ -441,11 +441,11 @@ export default function AuditLogPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <FileText className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <FileText className="h-6 w-6 md:h-8 md:w-8" />
             Audit Log
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             View system activity and user actions (Admin only)
           </p>
         </div>
@@ -454,7 +454,7 @@ export default function AuditLogPage() {
       {/* Filters Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
@@ -463,7 +463,7 @@ export default function AuditLogPage() {
               <CardDescription>Filter audit logs by action, entity type, or date range</CardDescription>
             </div>
             {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
+              <Button variant="outline" size="sm" onClick={clearFilters} className="w-full sm:w-auto">
                 <X className="h-4 w-4 mr-2" />
                 Clear Filters
               </Button>

@@ -158,7 +158,7 @@ export function AppHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0 self-start">
       <div className="container relative flex h-16 items-center gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: Hamburger — reserve min width on mobile so logo center stays clear */}
         <div className="flex min-w-[3.5rem] flex-1 items-center md:min-w-0 md:flex-initial md:flex-none">
