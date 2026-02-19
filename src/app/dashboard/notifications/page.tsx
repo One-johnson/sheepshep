@@ -586,45 +586,45 @@ export default function NotificationsPage() {
 
       {/* Stats Cards */}
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
           <StatsCardSkeleton count={3} />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Notifications</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Notifications</CardTitle>
             <Bell className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">All notifications</p>
+            <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">All notifications</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unread</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Unread</CardTitle>
             <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {stats.unread}
             </div>
-            <p className="text-xs text-muted-foreground">Requires attention</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Read</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Read</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {stats.read}
             </div>
-            <p className="text-xs text-muted-foreground">Already viewed</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Already viewed</p>
           </CardContent>
         </Card>
       </div>

@@ -907,7 +907,7 @@ export default function MembersPage() {
       {/* Stats Cards */}
       {isLoading ? (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-6">
             <StatsCardSkeleton count={6} showDescription={false} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -918,14 +918,14 @@ export default function MembersPage() {
         </>
       ) : stats ? (
         <>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Total Members</CardTitle>
               <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalMembers}</div>
+              <div className="text-xl sm:text-2xl font-bold">{stats.totalMembers}</div>
             </CardContent>
           </Card>
           <Card>
@@ -934,43 +934,43 @@ export default function MembersPage() {
               <Sparkles className="h-4 w-4 text-violet-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.statusCounts.new_convert}</div>
+              <div className="text-xl sm:text-2xl font-bold">{stats.statusCounts.new_convert}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">First Timers</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">First Timers</CardTitle>
               <Clock className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.statusCounts.first_timer}</div>
+              <div className="text-xl sm:text-2xl font-bold">{stats.statusCounts.first_timer}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Established</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Established</CardTitle>
               <CheckCircle className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.statusCounts.established}</div>
+              <div className="text-xl sm:text-2xl font-bold">{stats.statusCounts.established}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Visitors</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Visitors</CardTitle>
               <UserCheck className="h-4 w-4 text-sky-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.statusCounts.visitor}</div>
+              <div className="text-xl sm:text-2xl font-bold">{stats.statusCounts.visitor}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inactive</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Inactive</CardTitle>
               <UserX className="h-4 w-4 text-rose-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.statusCounts.inactive}</div>
+              <div className="text-xl sm:text-2xl font-bold">{stats.statusCounts.inactive}</div>
             </CardContent>
           </Card>
         </div>

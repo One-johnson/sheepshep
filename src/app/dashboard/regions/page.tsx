@@ -368,19 +368,19 @@ export default function RegionsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 min-w-0">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <MapPin className="h-6 w-6" />
-            Regions & Bacentas
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+            <MapPin className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
+            <span className="truncate">Regions & Bacentas</span>
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Add regions, then add bacentas to each region and assign a pastor per region.
           </p>
         </div>
         <Dialog open={addRegionOpen} onOpenChange={setAddRegionOpen}>
-          <Button onClick={() => setAddRegionOpen(true)}>
+          <Button onClick={() => setAddRegionOpen(true)} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             Add Region
           </Button>
@@ -612,74 +612,84 @@ export default function RegionsPage() {
           {regionsWithDetails.map((r) => {
             const badgeStyle = BADGE_COLORS.find((c) => c.value === (r.badgeColor ?? "slate")) ?? BADGE_COLORS[5];
             return (
-              <Card key={r._id}>
+              <Card key={r._id} className="overflow-hidden">
                 <Collapsible
                   open={expandedRegion === r._id}
                   onOpenChange={(open) => setExpandedRegion(open ? r._id : null)}
                 >
                   <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-wrap">
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4 sm:py-6">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
                           {expandedRegion === r._id ? (
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-4 w-4 shrink-0" />
                           ) : (
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-4 w-4 shrink-0" />
                           )}
-                          <CardTitle className="text-lg">{r.name}</CardTitle>
-                          <Badge variant="outline" className={badgeStyle.class}>
+                          <CardTitle className="text-base sm:text-lg truncate">{r.name}</CardTitle>
+                          <Badge variant="outline" className={`shrink-0 ${badgeStyle.class}`}>
                             {BADGE_COLORS.find((c) => c.value === (r.badgeColor ?? "slate"))?.label ?? "Slate"}
                           </Badge>
                           {r.pastor && (
-                            <span className="text-sm text-muted-foreground flex items-center gap-1">
-                              <UserRound className="h-3 w-3" />
-                              Pastor: {r.pastor.name}
+                            <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 truncate">
+                              <UserRound className="h-3 w-3 shrink-0" />
+                              <span className="truncate">Pastor: {r.pastor.name}</span>
                             </span>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleEditRegion(r);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setDeleteRegionId(r._id);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">{r.bacentas.length} bacenta(s)</Badge>
-                          <Badge variant="secondary">{r.totalShepherds ?? 0} shepherd(s)</Badge>
-                          <Badge variant="secondary">{r.totalMembers ?? 0} member(s)</Badge>
+                          <div className="flex items-center gap-0 sm:gap-0 ml-auto sm:ml-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleEditRegion(r);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive shrink-0"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDeleteRegionId(r._id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </CardHeader>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <CardContent className="pt-0 space-y-4">
-                      <div className="flex flex-wrap gap-4 items-end">
-                        <div className="space-y-2">
-                          <Label>Assign pastor to this region</Label>
+                    <CardContent className="pt-0 space-y-4 pb-4 sm:pb-6">
+                      {/* Stats inside collapsible */}
+                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                        <Badge variant="secondary" className="justify-center py-1.5 text-xs sm:text-sm">
+                          {r.bacentas.length} bacenta(s)
+                        </Badge>
+                        <Badge variant="secondary" className="justify-center py-1.5 text-xs sm:text-sm">
+                          {r.totalShepherds ?? 0} shepherd(s)
+                        </Badge>
+                        <Badge variant="secondary" className="justify-center py-1.5 text-xs sm:text-sm col-span-2 sm:col-span-1">
+                          {r.totalMembers ?? 0} member(s)
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 items-stretch sm:items-end">
+                        <div className="space-y-2 w-full sm:w-auto min-w-0">
+                          <Label className="text-xs sm:text-sm">Assign pastor to this region</Label>
                           <Select
                             value={r.pastorId ?? "none"}
                             onValueChange={(v) => handleAssignPastor(r._id, v)}
                             disabled={loading === r._id}
                           >
-                            <SelectTrigger className="w-[220px]">
+                            <SelectTrigger className="w-full sm:w-[220px]">
                               <SelectValue placeholder="Select pastor" />
                             </SelectTrigger>
                             <SelectContent>
@@ -693,13 +703,13 @@ export default function RegionsPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Bacentas in this region</Label>
-                        <div className="flex flex-wrap gap-2 items-end">
-                          <div className="space-y-1">
+                        <Label className="text-xs sm:text-sm">Bacentas in this region</Label>
+                        <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-3 items-end">
+                          <div className="space-y-1 min-w-0">
                             <Label className="text-xs text-muted-foreground">Name</Label>
                             <Input
                               placeholder="Bacenta name"
-                              className="w-40"
+                              className="w-full min-w-0 sm:w-40"
                               value={bacentaNameByRegion[r._id] ?? ""}
                               onChange={(e) =>
                                 setBacentaNameByRegion((prev) => ({ ...prev, [r._id]: e.target.value }))
@@ -712,18 +722,18 @@ export default function RegionsPage() {
                               }}
                             />
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-1 min-w-0">
                             <Label className="text-xs text-muted-foreground">Area</Label>
                             <Input
                               placeholder="Area"
-                              className="w-32"
+                              className="w-full min-w-0 sm:w-32"
                               value={bacentaAreaByRegion[r._id] ?? ""}
                               onChange={(e) =>
                                 setBacentaAreaByRegion((prev) => ({ ...prev, [r._id]: e.target.value }))
                               }
                             />
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-1 min-w-0">
                             <Label className="text-xs text-muted-foreground">Meeting day</Label>
                             <Select
                               value={
@@ -739,7 +749,7 @@ export default function RegionsPage() {
                                 }))
                               }
                             >
-                              <SelectTrigger className="w-36">
+                              <SelectTrigger className="w-full min-w-0 sm:w-36">
                                 <SelectValue placeholder="Day" />
                               </SelectTrigger>
                               <SelectContent>
@@ -753,6 +763,7 @@ export default function RegionsPage() {
                           <Button
                             size="sm"
                             onClick={() => handleAddBacenta(r._id)}
+                            className="w-full sm:w-auto"
                             disabled={
                               !(bacentaNameByRegion[r._id]?.trim()) || loading === `bacenta-${r._id}`
                             }
@@ -770,7 +781,7 @@ export default function RegionsPage() {
                         {shepherds && shepherds.length > 0 && (
                           <div className="space-y-1 mt-2">
                             <Label className="text-xs text-muted-foreground">Assign shepherds (optional)</Label>
-                            <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
+                            <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto min-w-0">
                               {shepherds.map((shepherd) => {
                                 const selectedIds = bacentaShepherdIdsByRegion[r._id] || [];
                                 const isSelected = selectedIds.includes(shepherd._id);
@@ -803,21 +814,21 @@ export default function RegionsPage() {
                             </div>
                           </div>
                         )}
-                        <ul className="list-none space-y-1 mt-2">
+                        <ul className="list-none space-y-1 mt-2 min-w-0">
                           {r.bacentas.map((b) => (
-                            <li key={b._id} className="flex items-center gap-2 group">
+                            <li key={b._id} className="flex items-center gap-2 group min-w-0">
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1 text-left font-medium text-primary hover:underline"
+                                className="inline-flex items-center gap-1 text-left font-medium text-primary hover:underline min-w-0 truncate"
                                 onClick={() => setBacentaDetailId(b._id)}
                               >
                                 <Link2 className="h-3 w-3 shrink-0" />
-                                {b.name}
+                                <span className="truncate">{b.name}</span>
                                 {b.area && (
-                                  <span className="text-muted-foreground font-normal text-sm">({b.area})</span>
+                                  <span className="text-muted-foreground font-normal text-xs sm:text-sm shrink-0">({b.area})</span>
                                 )}
                                 {b.meetingDay !== undefined && (
-                                  <span className="text-muted-foreground font-normal text-sm">
+                                  <span className="text-muted-foreground font-normal text-xs sm:text-sm shrink-0">
                                     · {DAYS[b.meetingDay]?.label ?? "Day " + b.meetingDay}
                                   </span>
                                 )}
