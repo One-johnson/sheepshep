@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
 import { useTheme } from "next-themes";
+import { useAuth } from "@/contexts/auth-context";
+import { clearSessionCookie } from "@/lib/session";
 
 interface MenuItem {
   title: string;
@@ -35,7 +37,7 @@ interface MenuItem {
 
 export default function MorePage() {
   const router = useRouter();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token, setToken } = useAuth();
   const logout = useMutation(api.auth.logout);
   const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
   const { theme } = useTheme();
@@ -50,7 +52,8 @@ export default function MorePage() {
       if (token) {
         await logout({ token });
       }
-      localStorage.removeItem("authToken");
+      clearSessionCookie();
+      setToken(null);
       toast.success("Logged out successfully");
       router.push("/login");
     } catch (error: any) {

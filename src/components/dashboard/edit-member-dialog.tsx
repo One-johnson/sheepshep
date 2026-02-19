@@ -39,6 +39,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/auth-context";
 
 const memberSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -115,7 +116,7 @@ export function EditMemberDialog({
   onOpenChange,
   member,
 }: EditMemberDialogProps): React.JSX.Element {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const updateMember = useMutation(api.members.update);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);

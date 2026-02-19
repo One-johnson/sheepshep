@@ -10,11 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SupportForm } from "@/components/support/support-form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/auth-context";
 import { HelpCircle, ArrowLeft, Clock, Mail, Building2 } from "lucide-react";
 
 export default function SupportPage() {
   const router = useRouter();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const currentUser = useQuery(
     api.auth.getCurrentUser,
     token ? { token } : "skip"

@@ -38,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/auth-context";
 import { Label } from "@/components/ui/label";
 
 const pastorSchema = z.object({
@@ -90,7 +91,7 @@ interface EditPastorDialogProps {
 }
 
 export function EditPastorDialog({ open, onOpenChange, user }: EditPastorDialogProps): React.JSX.Element {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const updateUserProfile = useMutation(api.auth.updateUserProfile);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);

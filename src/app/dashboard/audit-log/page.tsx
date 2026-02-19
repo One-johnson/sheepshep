@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/hover-card";
 import { FileText, Filter, X, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/auth-context";
 
 // Format date for display
 function formatDate(timestamp: number): string {
@@ -91,7 +92,7 @@ type AuditLogEntry = {
 
 export default function AuditLogPage() {
   const router = useRouter();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
 
   // Server-side filter state - use "all" instead of empty string for Select components
   const [actionFilter, setActionFilter] = React.useState<string>("all");

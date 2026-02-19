@@ -71,6 +71,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/auth-context";
 
 // Type for user entry
 type UserEntry = {
@@ -176,7 +177,7 @@ function UserPhotoCell({
 }
 
 export default function UsersPage() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
 
   const users = useQuery(api.authUsers.list, token ? { token } : "skip");
   const stats = useQuery(api.authUsers.getStats, token ? { token } : "skip");

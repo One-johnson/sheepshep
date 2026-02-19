@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Heart,
   Search,
@@ -174,7 +175,7 @@ function getStatusBadge(status: string) {
 
 export default function PrayerRequestsPage() {
   const router = useRouter();
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedStatus, setSelectedStatus] = React.useState<string>("all");
@@ -186,7 +187,6 @@ export default function PrayerRequestsPage() {
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   // Get current user

@@ -63,6 +63,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EditShepherdDialog } from "@/components/dashboard/edit-shepherd-dialog";
 import { ViewUserDialog } from "@/components/dashboard/view-user-dialog";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { useAuth } from "@/contexts/auth-context";
 import { useQuery as useQueryHook } from "convex/react";
 
 // Component to display user photo
@@ -213,7 +214,7 @@ function MembersHoverCard({
 }
 
 export default function ShepherdsPage() {
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [viewDialogOpen, setViewDialogOpen] = React.useState(false);
@@ -224,7 +225,6 @@ export default function ShepherdsPage() {
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   // Get current user

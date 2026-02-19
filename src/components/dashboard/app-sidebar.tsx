@@ -35,6 +35,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/auth-context";
 
 interface MenuItem {
   title: string;
@@ -138,7 +139,7 @@ const allMenuItems: MenuItem[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
 
   const closeMobileSidebar = React.useCallback(() => {
     if (isMobile) setOpenMobile(false);

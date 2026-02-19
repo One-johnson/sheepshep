@@ -44,6 +44,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { convertDateToTimestamp, getUserFriendlyError, SUCCESS_SCRIPTURES, ERROR_SCRIPTURES } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 const shepherdSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -75,7 +76,7 @@ interface AddShepherdDialogProps {
 }
 
 export function AddShepherdDialog({ open, onOpenChange }: AddShepherdDialogProps): React.JSX.Element {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const createShepherd = useMutation(api.auth.createShepherd);
   const bulkAdd = useMutation(api.authUsers.bulkAdd);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);

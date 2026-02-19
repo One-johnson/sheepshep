@@ -43,6 +43,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer";
 import { Badge } from "@/components/ui/badge";
 import { GlobalSearch } from "@/components/dashboard/global-search";
+import { useAuth } from "@/contexts/auth-context";
+import { clearSessionCookie } from "@/lib/session";
 
 function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructive" | "outline" {
   switch (role) {
@@ -72,12 +74,12 @@ function getRoleBadgeClassName(role: string): string {
 
 export function AppHeader() {
   const router = useRouter();
+  const { token, setToken } = useAuth();
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  
+
   const currentUser = useQuery(
     api.auth.getCurrentUser,
     token ? { token } : "skip"
@@ -104,11 +106,11 @@ export function AppHeader() {
     
     // Check if queries failed with unauthorized error (token invalid/expired)
     if (currentUser === null && token) {
-      // Token exists but user query returned null - likely invalid token
-      localStorage.removeItem("authToken");
+      clearSessionCookie();
+      setToken(null);
       router.push("/login");
     }
-  }, [token, currentUser, router]);
+  }, [token, currentUser, router, setToken]);
 
   const logout = useMutation(api.auth.logout);
 
@@ -122,7 +124,8 @@ export function AppHeader() {
       if (token) {
         await logout({ token });
       }
-      localStorage.removeItem("authToken");
+      clearSessionCookie();
+      setToken(null);
       toast.success("Logged out successfully");
       router.push("/login");
     } catch (error: any) {
@@ -157,39 +160,46 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container relative flex h-16 items-center gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Left: Hamburger on mobile, sidebar trigger on desktop — larger touch target on mobile */}
-        <div className="flex min-w-0 flex-1 items-center md:flex-initial md:flex-none">
+        {/* Left: Hamburger — reserve min width on mobile so logo center stays clear */}
+        <div className="flex min-w-[3.5rem] flex-1 items-center md:min-w-0 md:flex-initial md:flex-none">
           <SidebarTrigger className="-ml-1 size-10 touch-manipulation md:size-7" />
         </div>
 
-        {/* Center: Logo — absolutely centered and enlarged on mobile */}
+        {/* Center: Logo — absolutely centered, constrained so it doesn't overlap side content */}
         <Link
           href="/dashboard"
-          className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 md:static md:translate-x-0 md:translate-y-0"
+          className="absolute left-1/2 top-1/2 z-10 flex max-w-[5.5rem] -translate-x-1/2 -translate-y-1/2 items-center gap-2 md:static md:max-w-none md:translate-x-0 md:translate-y-0"
         >
           <Image
             src="/logo.png"
             alt="SheepShep"
             width={120}
             height={50}
-            className="h-16 w-auto object-contain md:h-7"
+            className="h-12 w-auto object-contain md:h-7"
             priority
           />
         </Link>
 
-        {/* Right: Search + actions — same flex-1 as left so logo stays centered on mobile */}
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:max-w-md md:flex-initial md:justify-start md:gap-4">
-          <Button
-            variant="outline"
-            className="hidden w-full justify-start text-sm text-muted-foreground md:flex"
-            onClick={() => setSearchOpen(true)}
-          >
-            <Search className="mr-2 h-4 w-4" />
-            Search members, shepherds, pastors...
-            <kbd className="pointer-events-none ml-auto h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 hidden lg:flex">
-              <span className="text-xs">⌘</span>K
-            </kbd>
-          </Button>
+        {/* Right: Search + actions — on mobile all actions (search, notifications, profile) grouped right; logo stays center */}
+        <div className="flex min-w-[8.5rem] flex-1 items-center justify-end gap-2 md:min-w-0 md:flex-1 md:justify-between md:gap-4">
+          {/* Search: full bar on desktop only */}
+          <div className="hidden w-full max-w-md md:block">
+            <Button
+              variant="outline"
+              className="w-full justify-start text-sm text-muted-foreground"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Search members, shepherds, pastors...
+              <kbd className="pointer-events-none ml-auto h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 hidden lg:flex">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            </Button>
+          </div>
+
+          {/* Right actions: on mobile includes search icon; on desktop theme, notifications, profile */}
+          <div className="flex items-center justify-end gap-2 md:gap-3">
+          {/* Mobile: search icon with other actions */}
           <Button
             variant="ghost"
             size="icon"
@@ -198,9 +208,6 @@ export function AppHeader() {
           >
             <Search className="h-5 w-5" />
           </Button>
-
-          {/* Right Side Actions */}
-          <div className="flex items-center gap-2 md:gap-3">
           {/* Theme Toggle - Hidden on mobile */}
           <div className="hidden md:block">
             <ThemeToggle />
@@ -229,13 +236,13 @@ export function AppHeader() {
           {/* User Profile - Desktop Dropdown, Mobile Avatar Only */}
           {currentUser && (
             <>
-              {/* Desktop: Dropdown Menu */}
+              {/* Desktop: Dropdown Menu — at far right (parent uses justify-end) */}
               <div className="hidden md:block">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="flex items-center gap-2 h-auto py-2 px-3 border-4"
+                      className="flex items-center gap-2 h-auto py-2 px-3 border-2"
                     >
                       <Avatar className="h-8 w-8">
                         {profilePhotoUrl ? (

@@ -61,6 +61,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { format } from "date-fns";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/auth-context";
 
 // Format date for display
 function formatDate(timestamp: number): string {
@@ -177,12 +178,11 @@ function getApprovalBadgeProps(status: string) {
 
 export default function AttendancePage() {
   const router = useRouter();
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   // Get current user

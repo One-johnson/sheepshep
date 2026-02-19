@@ -35,6 +35,7 @@ import {
 import { Users, Plus, ArrowLeft, Search, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { useAuth } from "@/contexts/auth-context";
 
 const MEETING_DAYS = [
   { value: 0, label: "Sunday" },
@@ -48,7 +49,7 @@ const MEETING_DAYS = [
 
 export default function GroupsPage() {
   const router = useRouter();
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
@@ -59,7 +60,6 @@ export default function GroupsPage() {
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
