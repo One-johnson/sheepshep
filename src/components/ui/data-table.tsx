@@ -404,10 +404,10 @@ export function DataTable<TData, TValue>({
 
                       return (
                         <div key={cell.id} className="space-y-1">
-                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          <div className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             {headerText}
                           </div>
-                          <div className="text-sm">
+                          <div className="text-xs sm:text-sm">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </div>
                         </div>
@@ -456,27 +456,36 @@ export function DataTable<TData, TValue>({
 
       {/* Pagination */}
       {enablePagination && (
-        <div className="flex items-center justify-between px-2">
-          <div className="flex-1 text-sm text-muted-foreground">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2 py-2">
+          <div className="flex-1 text-xs sm:text-sm text-muted-foreground">
             {table.getFilteredRowModel().rows.length > 0 && (
               <>
-                Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
-                {Math.min(
-                  (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                  table.getFilteredRowModel().rows.length
-                )}{" "}
-                of {table.getFilteredRowModel().rows.length} entries
+                <span className="hidden sm:inline">
+                  Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
+                  {Math.min(
+                    (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                    table.getFilteredRowModel().rows.length
+                  )}{" "}
+                  of {table.getFilteredRowModel().rows.length} entries
+                </span>
+                <span className="sm:hidden">
+                  {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-{Math.min(
+                    (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                    table.getFilteredRowModel().rows.length
+                  )} of {table.getFilteredRowModel().rows.length}
+                </span>
               </>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium">Rows per page</p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex items-center gap-2 justify-between sm:justify-start">
+              <p className="text-xs sm:text-sm font-medium hidden sm:inline">Rows per page</p>
+              <p className="text-xs sm:text-sm font-medium sm:hidden">Per page</p>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8">
+                  <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm">
                     {table.getState().pagination.pageSize}
-                    <ChevronDown className="ml-2 h-4 w-4" />
+                    <ChevronDown className="ml-2 h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -487,6 +496,7 @@ export function DataTable<TData, TValue>({
                       onCheckedChange={() => {
                         table.setPageSize(size);
                       }}
+                      className="text-xs sm:text-sm"
                     >
                       {size}
                     </DropdownMenuCheckboxItem>
@@ -494,7 +504,7 @@ export function DataTable<TData, TValue>({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 justify-center sm:justify-start">
               <Button
                 variant="outline"
                 size="sm"
@@ -502,7 +512,7 @@ export function DataTable<TData, TValue>({
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
               >
-                <ChevronsLeft className="h-4 w-4" />
+                <ChevronsLeft className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
               <Button
                 variant="outline"
@@ -511,9 +521,9 @@ export function DataTable<TData, TValue>({
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
-              <div className="flex items-center justify-center text-sm font-medium w-12">
+              <div className="flex items-center justify-center text-xs sm:text-sm font-medium w-12 sm:w-12">
                 {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
               </div>
               <Button
@@ -523,7 +533,7 @@ export function DataTable<TData, TValue>({
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
               <Button
                 variant="outline"
@@ -532,7 +542,7 @@ export function DataTable<TData, TValue>({
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}
               >
-                <ChevronsRight className="h-4 w-4" />
+                <ChevronsRight className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
           </div>
