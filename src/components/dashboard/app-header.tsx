@@ -156,26 +156,32 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Sidebar Trigger */}
-        <SidebarTrigger className="-ml-1" />
+      <div className="container relative flex h-16 items-center gap-4 px-4 sm:px-6 lg:px-8">
+        {/* Left: Hamburger on mobile, sidebar trigger on desktop — larger touch target on mobile */}
+        <div className="flex min-w-0 flex-1 items-center md:flex-initial md:flex-none">
+          <SidebarTrigger className="-ml-1 size-10 touch-manipulation md:size-7" />
+        </div>
 
-        {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
+        {/* Center: Logo — absolutely centered and enlarged on mobile */}
+        <Link
+          href="/dashboard"
+          className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 md:static md:translate-x-0 md:translate-y-0"
+        >
           <Image
             src="/logo.png"
             alt="SheepShep"
-            width={100}
-            height={28}
-            className="h-7 w-auto object-contain"
+            width={120}
+            height={50}
+            className="h-16 w-auto object-contain md:h-7"
+            priority
           />
         </Link>
 
-        {/* Global Search */}
-        <div className="flex-1 max-w-md">
+        {/* Right: Search + actions — same flex-1 as left so logo stays centered on mobile */}
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:max-w-md md:flex-initial md:justify-start md:gap-4">
           <Button
             variant="outline"
-            className="w-full justify-start text-sm text-muted-foreground md:flex hidden"
+            className="hidden w-full justify-start text-sm text-muted-foreground md:flex"
             onClick={() => setSearchOpen(true)}
           >
             <Search className="mr-2 h-4 w-4" />
@@ -187,15 +193,14 @@ export function AppHeader() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="size-10 touch-manipulation md:hidden md:size-7"
             onClick={() => setSearchOpen(true)}
           >
             <Search className="h-5 w-5" />
           </Button>
-        </div>
 
-        {/* Right Side Actions */}
-        <div className="flex items-center gap-3 ml-auto">
+          {/* Right Side Actions */}
+          <div className="flex items-center gap-2 md:gap-3">
           {/* Theme Toggle - Hidden on mobile */}
           <div className="hidden md:block">
             <ThemeToggle />
@@ -324,6 +329,7 @@ export function AppHeader() {
               </Button>
             </>
           )}
+          </div>
         </div>
       </div>
 
