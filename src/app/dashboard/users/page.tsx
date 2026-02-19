@@ -702,7 +702,7 @@ export default function UsersPage() {
             Manage all users, pastors, and shepherds
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="hidden md:flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Button variant="outline" onClick={() => handleExportCSV()} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" />
             Export CSV
@@ -716,63 +716,63 @@ export default function UsersPage() {
 
       {/* Stats Cards */}
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <StatsCardSkeleton count={5} />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalUsers ?? 0}</div>
-            <p className="text-xs text-muted-foreground">All system users</p>
+            <div className="text-xl sm:text-2xl font-bold">{stats?.totalUsers ?? 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">All system users</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Admins</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Admins</CardTitle>
+            <Shield className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalAdmins ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Administrators</p>
+            <div className="text-xl sm:text-2xl font-bold">{stats?.totalAdmins ?? 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Administrators</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pastors</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Pastors</CardTitle>
+            <UserCheck className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalPastors ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Active pastors</p>
+            <div className="text-xl sm:text-2xl font-bold">{stats?.totalPastors ?? 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Active pastors</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Shepherds</CardTitle>
-            <UserCog className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Shepherds</CardTitle>
+            <UserCog className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalShepherds ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Active shepherds</p>
+            <div className="text-xl sm:text-2xl font-bold">{stats?.totalShepherds ?? 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Active shepherds</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Members</CardTitle>
+            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Church members</p>
+            <div className="text-xl sm:text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Church members</p>
           </CardContent>
           </Card>
         </div>
@@ -781,14 +781,14 @@ export default function UsersPage() {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg sm:text-xl">All Users</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
                 {users ? `Showing ${users.length} users` : "Loading users..."}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
             {selectedRows.length > 0 && (
               <>
                 <Button
@@ -798,9 +798,11 @@ export default function UsersPage() {
                     e.stopPropagation();
                     handleExportCSV(selectedRows);
                   }}
+                  className="w-full sm:w-auto text-xs sm:text-sm"
                 >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export CSV ({selectedRows.length})
+                  <Download className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">CSV ({selectedRows.length})</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -809,28 +811,42 @@ export default function UsersPage() {
                     e.stopPropagation();
                     handleExportPDF(selectedRows);
                   }}
+                  className="w-full sm:w-auto text-xs sm:text-sm"
                 >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Export PDF ({selectedRows.length})
+                  <FileText className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Export PDF</span>
+                  <span className="sm:hidden">PDF ({selectedRows.length})</span>
                 </Button>
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => setDeleteDialogOpen(true)}
                   disabled={isDeleting}
+                  className="w-full sm:w-auto text-xs sm:text-sm"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Selected ({selectedRows.length})
+                  <Trash2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Delete Selected ({selectedRows.length})</span>
+                  <span className="sm:hidden">Delete ({selectedRows.length})</span>
                 </Button>
               </>
             )}
-              <Button onClick={() => setAddShepherdDialogOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add Shepherd
+              <Button 
+                onClick={() => setAddShepherdDialogOpen(true)}
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                size="sm"
+              >
+                <UserPlus className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Add Shepherd</span>
+                <span className="sm:hidden">Shepherd</span>
               </Button>
-              <Button onClick={() => setAddPastorDialogOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add Pastor
+              <Button 
+                onClick={() => setAddPastorDialogOpen(true)}
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                size="sm"
+              >
+                <UserPlus className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Add Pastor</span>
+                <span className="sm:hidden">Pastor</span>
               </Button>
             </div>
           </div>
