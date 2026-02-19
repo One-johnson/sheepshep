@@ -830,7 +830,7 @@ export default function MembersPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4 min-w-0">
           <Button
             variant="ghost"
@@ -841,16 +841,17 @@ export default function MembersPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold">Members</h1>
-            <p className="text-muted-foreground">Manage church members</p>
+            <h1 className="text-2xl md:text-3xl font-bold">Members</h1>
+            <p className="text-sm md:text-base text-muted-foreground">Manage church members</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
           {selectedRows.length > 0 && (
             <>
               <Button
                 variant="outline"
                 onClick={() => handleExportCSV(selectedRows)}
+                className="w-full sm:w-auto"
               >
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV ({selectedRows.length})
@@ -858,6 +859,7 @@ export default function MembersPage() {
               <Button
                 variant="outline"
                 onClick={() => handleExportPDF(selectedRows)}
+                className="w-full sm:w-auto"
               >
                 <FileText className="mr-2 h-4 w-4" />
                 Export PDF ({selectedRows.length})
@@ -868,6 +870,7 @@ export default function MembersPage() {
                   setBulkNewStatus("established");
                   setBulkChangeStatusDialogOpen(true);
                 }}
+                className="w-full sm:w-auto"
               >
                 <UserCog className="mr-2 h-4 w-4" />
                 Change Status ({selectedRows.length})
@@ -884,6 +887,7 @@ export default function MembersPage() {
                     }
                   }}
                   disabled={isDeleting}
+                  className="w-full sm:w-auto"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Selected ({selectedRows.length})
@@ -892,7 +896,7 @@ export default function MembersPage() {
             </>
           )}
           {(isAdmin || isShepherd) && (
-            <Button onClick={() => setAddMemberDialogOpen(true)}>
+            <Button onClick={() => setAddMemberDialogOpen(true)} className="w-full sm:w-auto">
               <UserPlus className="mr-2 h-4 w-4" />
               Add Member
             </Button>

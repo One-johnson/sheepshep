@@ -692,22 +692,22 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <Users className="h-6 w-6 md:h-8 md:w-8" />
             Users
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage all users, pastors, and shepherds
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => handleExportCSV()}>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Button variant="outline" onClick={() => handleExportCSV()} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
-          <Button variant="outline" onClick={() => handleExportPDF()}>
+          <Button variant="outline" onClick={() => handleExportPDF()} className="w-full sm:w-auto">
             <FileText className="mr-2 h-4 w-4" />
             Export PDF
           </Button>

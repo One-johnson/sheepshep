@@ -488,7 +488,7 @@ export default function ShepherdsPage() {
                   : "View and manage all shepherds"}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
               {selectedRows.size > 0 && (
                 <>
                   <Button
@@ -498,6 +498,7 @@ export default function ShepherdsPage() {
                       const selectedShepherds = filteredShepherds.filter((s) => selectedRows.has(s._id));
                       handleExportCSV(selectedShepherds);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV ({selectedRows.size})
@@ -509,6 +510,7 @@ export default function ShepherdsPage() {
                       const selectedShepherds = filteredShepherds.filter((s) => selectedRows.has(s._id));
                       handleExportPDF(selectedShepherds);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     Export PDF ({selectedRows.size})
@@ -519,6 +521,7 @@ export default function ShepherdsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleExportCSV()}
+                className="w-full sm:w-auto"
               >
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
@@ -527,11 +530,12 @@ export default function ShepherdsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleExportPDF()}
+                className="w-full sm:w-auto"
               >
                 <FileText className="mr-2 h-4 w-4" />
                 Export PDF
               </Button>
-              <div className="relative flex-1 sm:flex-initial">
+              <div className="relative w-full sm:w-auto sm:flex-initial">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search shepherds..."

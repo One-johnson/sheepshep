@@ -502,7 +502,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <Button
             variant="ghost"
@@ -634,7 +634,7 @@ export default function NotificationsPage() {
       {(hasActiveFilters || uniqueTypes.length > 0) && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Filter className="h-5 w-5" />
@@ -643,7 +643,7 @@ export default function NotificationsPage() {
                 <CardDescription>Filter notifications by status or type</CardDescription>
               </div>
               {hasActiveFilters && (
-                <Button variant="outline" size="sm" onClick={clearFilters}>
+                <Button variant="outline" size="sm" onClick={clearFilters} className="w-full sm:w-auto">
                   <X className="h-4 w-4 mr-2" />
                   Clear Filters
                 </Button>
@@ -690,7 +690,7 @@ export default function NotificationsPage() {
       {/* Notifications Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <CardTitle>All Notifications</CardTitle>
               <CardDescription>
@@ -707,6 +707,7 @@ export default function NotificationsPage() {
                 size="sm"
                 onClick={() => setDeleteDialogOpen(true)}
                 disabled={isDeleting}
+                className="w-full sm:w-auto"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete Selected ({selectedRows.length})
