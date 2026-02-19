@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 interface NavItem {
   title: string;
@@ -36,7 +37,7 @@ const allNavItems: NavItem[] = [
 
 export function MobileNav() {
   const pathname = usePathname();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");
 
   const navItems = React.useMemo(() => {

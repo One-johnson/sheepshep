@@ -43,6 +43,7 @@ import {
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/auth-context";
 
 const MEETING_DAYS = [
   { value: 0, label: "Sunday" },
@@ -67,7 +68,7 @@ export default function GroupDetailPage() {
   const params = useParams();
   const groupId = params.groupId as Id<"groups">;
 
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [editName, setEditName] = React.useState("");
@@ -82,7 +83,6 @@ export default function GroupDetailPage() {
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   const currentUser = useQuery(api.auth.getCurrentUser, token ? { token } : "skip");

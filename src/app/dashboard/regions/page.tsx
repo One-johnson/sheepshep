@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 import {
   MapPin,
   Plus,
@@ -128,7 +129,7 @@ function MemberListItem({
 }
 
 export default function RegionsPage() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const regionsWithDetails = useQuery(
     api.regions.listRegionsWithDetails,
     token ? { token } : "skip"

@@ -53,6 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -187,7 +188,7 @@ function MemberPhotoCell({
 
 export default function MembersPage() {
   const [isClient, setIsClient] = React.useState(false);
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
 
   React.useEffect(() => {
     setIsClient(true);

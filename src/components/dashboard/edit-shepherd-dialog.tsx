@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const shepherdSchema = z.object({
@@ -92,7 +93,7 @@ export function EditShepherdDialog({
   onOpenChange,
   user,
 }: EditShepherdDialogProps): React.JSX.Element {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const updateUserProfile = useMutation(api.auth.updateUserProfile);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);

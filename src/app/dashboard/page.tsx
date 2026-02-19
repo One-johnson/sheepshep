@@ -37,6 +37,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { useAuth } from "@/contexts/auth-context";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
@@ -80,7 +81,7 @@ function formatDate(timestamp: number): string {
 }
 
 export default function DashboardPage() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
 
   const stats = useQuery(
     api.dashboard.getStats,

@@ -31,6 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Select,
   SelectContent,
@@ -214,7 +215,7 @@ function getNotificationColor(type: string): string {
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
 
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [typeFilter, setTypeFilter] = React.useState<string>("all");

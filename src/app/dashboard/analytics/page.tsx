@@ -30,6 +30,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/auth-context";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
@@ -63,12 +64,11 @@ function ChartSkeleton() {
 }
 
 export default function AnalyticsPage() {
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   // Get current user

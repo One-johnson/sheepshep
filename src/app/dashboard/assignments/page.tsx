@@ -61,15 +61,15 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function AssignmentsPage() {
   const router = useRouter();
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   // Get current user for role checking

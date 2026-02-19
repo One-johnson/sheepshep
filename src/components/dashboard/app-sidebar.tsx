@@ -33,7 +33,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/auth-context";
 
 interface MenuItem {
   title: string;
@@ -136,8 +138,13 @@ const allMenuItems: MenuItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  
+  const { isMobile, setOpenMobile } = useSidebar();
+  const { token } = useAuth();
+
+  const closeMobileSidebar = React.useCallback(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [isMobile, setOpenMobile]);
+
   const currentUser = useQuery(
     api.auth.getCurrentUser,
     token ? { token } : "skip"
@@ -161,6 +168,7 @@ export function AppSidebar() {
         <Link
           href="/dashboard"
           className="flex items-center gap-2 overflow-hidden rounded-md p-2 outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2"
+          onClick={closeMobileSidebar}
         >
           <Image
             src="/logo.png"
@@ -189,7 +197,11 @@ export function AppSidebar() {
                       isActive={isActive}
                       tooltip={item.title}
                     >
-                      <Link href={item.url} className="flex items-center gap-2 w-full">
+                      <Link
+                        href={item.url}
+                        className="flex items-center gap-2 w-full"
+                        onClick={closeMobileSidebar}
+                      >
                         <Icon />
                         <span>{item.title}</span>
                       </Link>

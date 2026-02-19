@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EditProfileDialog } from "@/components/dashboard/edit-profile-dialog";
+import { useAuth } from "@/contexts/auth-context";
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("en-US", {
@@ -45,7 +46,7 @@ function getRoleBadgeClassName(role: string): string {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const [editProfileDialogOpen, setEditProfileDialogOpen] = React.useState(false);
   
   const currentUser = useQuery(

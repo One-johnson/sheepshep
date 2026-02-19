@@ -43,6 +43,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { convertDateToTimestamp, getUserFriendlyError, SUCCESS_SCRIPTURES, ERROR_SCRIPTURES } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 const pastorSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -77,7 +78,7 @@ interface AddPastorDialogProps {
 }
 
 export function AddPastorDialog({ open, onOpenChange }: AddPastorDialogProps): React.JSX.Element {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const createPastor = useMutation(api.auth.createPastor);
   const bulkAdd = useMutation(api.authUsers.bulkAdd);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);

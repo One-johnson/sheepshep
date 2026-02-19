@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Calendar,
   LayoutGrid,
@@ -267,7 +268,7 @@ function EventDetailContent({
 }
 
 export default function EventsPage() {
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<"table" | "card" | "calendar">("calendar");
   const [calendarMonth, setCalendarMonth] = React.useState(() => new Date());
@@ -289,7 +290,6 @@ export default function EventsPage() {
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   React.useEffect(() => {

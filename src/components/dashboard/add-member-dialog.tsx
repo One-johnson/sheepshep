@@ -43,6 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { convertDateToTimestamp, getUserFriendlyError, SUCCESS_SCRIPTURES, ERROR_SCRIPTURES } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 const memberSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -84,7 +85,7 @@ interface AddMemberDialogProps {
 }
 
 export function AddMemberDialog({ open, onOpenChange }: AddMemberDialogProps): React.JSX.Element {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   const createMember = useMutation(api.members.create);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const uploadProfilePhoto = useMutation(api.storage.uploadProfilePhoto);

@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
 import { ConvexReactClient } from "convex/react";
 import { toast } from "sonner";
 import { useReactToPrint } from "react-to-print";
@@ -99,7 +100,7 @@ function getInitials(firstName: string, lastName: string) {
 }
 
 export function ViewMemberDialog({ open, onOpenChange, member }: ViewMemberDialogProps) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   
   const photoUrl = useQuery(
     api.storage.getFileUrl,

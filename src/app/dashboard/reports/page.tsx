@@ -48,6 +48,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/auth-context";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -170,7 +171,7 @@ function getOutcomeBadge(outcome?: string) {
 
 export default function ReportsPage() {
   const router = useRouter();
-  const [token, setToken] = React.useState<string | null>(null);
+  const { token } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedShepherd, setSelectedShepherd] = React.useState<string>("all");
@@ -181,7 +182,6 @@ export default function ReportsPage() {
 
   React.useEffect(() => {
     setIsClient(true);
-    setToken(localStorage.getItem("authToken"));
   }, []);
 
   // Get current user

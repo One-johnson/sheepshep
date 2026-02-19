@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog";
+import { useAuth } from "@/contexts/auth-context";
 
 const settingsSchema = z.object({
   // General
@@ -119,7 +120,7 @@ type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
   const router = useRouter();
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const { token } = useAuth();
   
   const settings = useQuery(
     api.settings.get,

@@ -29,6 +29,7 @@ import { AuthLayout } from "@/components/auth/auth-layout";
 import { ForgotPasswordDialog } from "@/components/auth/forgot-password-dialog";
 import { toast } from "sonner";
 import { authScriptures, defaultAuthScripture } from "@/lib/auth-scriptures";
+import { setSessionCookie } from "@/lib/session";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -82,7 +83,7 @@ export default function LoginPage() {
       });
 
       if (result.token && result.user) {
-        localStorage.setItem("authToken", result.token);
+        setSessionCookie(result.token);
         const randomScripture =
           authScriptures[Math.floor(Math.random() * authScriptures.length)];
         toast.success("Login successful!", {
