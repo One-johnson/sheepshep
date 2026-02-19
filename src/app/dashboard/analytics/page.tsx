@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           <>
             <StatsCardSkeleton />
@@ -223,12 +223,12 @@ export default function AnalyticsPage() {
           <>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-medium">Total Members</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalMembers || 0}</div>
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xl sm:text-2xl font-bold">{stats?.totalMembers || 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
                   Active members in the system
                 </p>
               </CardContent>
@@ -236,12 +236,12 @@ export default function AnalyticsPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Shepherds</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-medium">Total Shepherds</CardTitle>
                 <UserCheck className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalShepherds || 0}</div>
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xl sm:text-2xl font-bold">{stats?.totalShepherds || 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
                   {isPastor ? "Assigned to you" : "Active shepherds"}
                 </p>
               </CardContent>
@@ -249,12 +249,12 @@ export default function AnalyticsPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Recent Attendance</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-medium">Recent Attendance</CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.recentAttendance || 0}</div>
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xl sm:text-2xl font-bold">{stats?.recentAttendance || 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
                   Last 7 days attendance
                 </p>
               </CardContent>
@@ -262,12 +262,12 @@ export default function AnalyticsPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Reports</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-medium">Total Reports</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{Object.values(stats?.reportsByType || {}).reduce((a, b) => a + b, 0) || 0}</div>
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xl sm:text-2xl font-bold">{Object.values(stats?.reportsByType || {}).reduce((a, b) => a + b, 0) || 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
                   Reports from shepherds
                 </p>
               </CardContent>

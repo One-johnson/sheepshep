@@ -187,12 +187,12 @@ export default function DashboardPage() {
           <>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">My Members</CardTitle>
+                <CardTitle className="text-xs sm:text-sm font-medium">My Members</CardTitle>
                 <UserCog className={`h-4 w-4 ${isShepherd ? "text-blue-500" : "text-muted-foreground"}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xl sm:text-2xl font-bold">{stats?.totalMembers ?? 0}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
                   {isShepherd ? "Members in your care" : "Active members"}
                 </p>
               </CardContent>
@@ -202,36 +202,36 @@ export default function DashboardPage() {
               <>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Assignments</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">Assignments</CardTitle>
                     <ClipboardList className="h-4 w-4 text-amber-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats?.pendingAssignments ?? 0}</div>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="text-xl sm:text-2xl font-bold">{stats?.pendingAssignments ?? 0}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                       Pending or in progress
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Awaiting Approval</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">Awaiting Approval</CardTitle>
                     <CalendarCheck className="h-4 w-4 text-emerald-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats?.pendingAttendance ?? 0}</div>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="text-xl sm:text-2xl font-bold">{stats?.pendingAttendance ?? 0}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                       Attendance pending
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">At-Risk</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">At-Risk</CardTitle>
                     <AlertTriangle className="h-4 w-4 text-rose-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats?.atRiskMembers ?? 0}</div>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="text-xl sm:text-2xl font-bold">{stats?.atRiskMembers ?? 0}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                       Members need follow-up
                     </p>
                   </CardContent>
@@ -243,36 +243,36 @@ export default function DashboardPage() {
               <>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Shepherds</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">Shepherds</CardTitle>
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats?.totalShepherds ?? 0}</div>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="text-xl sm:text-2xl font-bold">{stats?.totalShepherds ?? 0}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                       Active shepherds
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pastors</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">Pastors</CardTitle>
                     <UserCheck className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats?.totalPastors ?? 0}</div>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="text-xl sm:text-2xl font-bold">{stats?.totalPastors ?? 0}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                       Active pastors
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">Notifications</CardTitle>
                     <Bell className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="text-xl sm:text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                       Unread notifications
                     </p>
                   </CardContent>
@@ -283,12 +283,12 @@ export default function DashboardPage() {
             {isShepherd && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium">Notifications</CardTitle>
                   <Bell className="h-4 w-4 text-violet-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="text-xl sm:text-2xl font-bold">{stats?.unreadNotifications ?? 0}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     Unread notifications
                   </p>
                 </CardContent>
