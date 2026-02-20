@@ -15,6 +15,7 @@ import {
   Calendar,
   HelpCircle,
   MapPin,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -32,109 +33,61 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useAuth } from "@/contexts/auth-context";
 
 interface MenuItem {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: ("admin" | "pastor" | "shepherd")[]; // If undefined, show to all roles
+  roles?: ("admin" | "pastor" | "shepherd")[];
 }
 
-const allMenuItems: MenuItem[] = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Users",
-    url: "/dashboard/users",
-    icon: Users,
-    roles: ["admin"], // Admin only
-  },
-  {
-    title: "Regions",
-    url: "/dashboard/regions",
-    icon: MapPin,
-    roles: ["admin"],
-  },
-  {
-    title: "Shepherds",
-    url: "/dashboard/shepherds",
-    icon: Users,
-    roles: ["admin", "pastor"], // Admin and Pastor
-  },
-  {
-    title: "Members",
-    url: "/dashboard/members",
-    icon: UserCheck,
-  },
-  {
-    title: "Groups",
-    url: "/dashboard/groups",
-    icon: Users,
-  },
-  {
-    title: "Assignments",
-    url: "/dashboard/assignments",
-    icon: ClipboardList,
-  },
-  {
-    title: "Attendance",
-    url: "/dashboard/attendance",
-    icon: CalendarCheck,
-  },
-  {
-    title: "Events",
-    url: "/dashboard/events",
-    icon: Calendar,
-    roles: ["admin", "pastor", "shepherd"],
-  },
-  {
-    title: "Reports",
-    url: "/dashboard/reports",
-    icon: FileText,
-    roles: ["admin", "pastor", "shepherd"], // Shepherds view/submit their own reports
-  },
-  {
-    title: "Prayer Requests",
-    url: "/dashboard/prayer-requests",
-    icon: Heart,
-  },
-  {
-    title: "Notifications",
-    url: "/dashboard/notifications",
-    icon: Bell,
-  },
-  {
-    title: "Analytics",
-    url: "/dashboard/analytics",
-    icon: BarChart3,
-    roles: ["admin", "pastor"], // Admin and Pastor
-  },
-  {
-    title: "Support",
-    url: "/dashboard/support",
-    icon: HelpCircle,
-    roles: ["admin"], // Admin only
-  },
-  {
-    title: "Settings",
-    url: "/dashboard/settings",
-    icon: Settings,
-    roles: ["admin"], // Admin only
-  },
-  {
-    title: "Audit Log",
-    url: "/dashboard/audit-log",
-    icon: FileText,
-    roles: ["admin"], // Admin only
-  },
+type NavGroupKey = "main" | "people" | "ministry" | "insights" | "system";
+
+interface MenuItemWithGroup extends MenuItem {
+  group: NavGroupKey;
+}
+
+const allMenuItems: MenuItemWithGroup[] = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, group: "main" },
+  { title: "Users", url: "/dashboard/users", icon: Users, roles: ["admin"], group: "people" },
+  { title: "Regions", url: "/dashboard/regions", icon: MapPin, roles: ["admin"], group: "people" },
+  { title: "Shepherds", url: "/dashboard/shepherds", icon: Users, roles: ["admin", "pastor"], group: "people" },
+  { title: "Members", url: "/dashboard/members", icon: UserCheck, group: "people" },
+  { title: "Groups", url: "/dashboard/groups", icon: Users, group: "people" },
+  { title: "Assignments", url: "/dashboard/assignments", icon: ClipboardList, group: "ministry" },
+  { title: "Attendance", url: "/dashboard/attendance", icon: CalendarCheck, group: "ministry" },
+  { title: "Events", url: "/dashboard/events", icon: Calendar, roles: ["admin", "pastor", "shepherd"], group: "ministry" },
+  { title: "Reports", url: "/dashboard/reports", icon: FileText, roles: ["admin", "pastor", "shepherd"], group: "ministry" },
+  { title: "Prayer Requests", url: "/dashboard/prayer-requests", icon: Heart, group: "ministry" },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Bell, group: "insights" },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "pastor"], group: "insights" },
+  { title: "Support", url: "/dashboard/support", icon: HelpCircle, roles: ["admin"], group: "system" },
+  { title: "Settings", url: "/dashboard/settings", icon: Settings, roles: ["admin"], group: "system" },
+  { title: "Audit Log", url: "/dashboard/audit-log", icon: FileText, roles: ["admin"], group: "system" },
 ];
+
+const navGroupConfig: Record<
+  NavGroupKey,
+  { label: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  main: { label: "Main", icon: LayoutDashboard },
+  people: { label: "People", icon: Users },
+  ministry: { label: "Ministry", icon: ClipboardList },
+  insights: { label: "Insights", icon: BarChart3 },
+  system: { label: "System", icon: Settings },
+};
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -150,17 +103,33 @@ export function AppSidebar() {
     token ? { token } : "skip"
   );
 
-  // Filter menu items based on user role
   const menuItems = React.useMemo(() => {
     if (!currentUser) return [];
-    
     return allMenuItems.filter((item) => {
-      // If no roles specified, show to all
       if (!item.roles) return true;
-      // Otherwise, check if user's role is in the allowed roles
       return item.roles.includes(currentUser.role);
     });
   }, [currentUser]);
+
+  const itemsByGroup = React.useMemo(() => {
+    const map = new Map<NavGroupKey, MenuItemWithGroup[]>();
+    for (const item of menuItems) {
+      const list = map.get(item.group) ?? [];
+      list.push(item);
+      map.set(item.group, list);
+    }
+    return map;
+  }, [menuItems]);
+
+  const isItemActive = (url: string) =>
+    pathname === url ||
+    (pathname?.startsWith(url + "/") ?? false) ||
+    (url === "/dashboard" && pathname === "/dashboard");
+
+  const isGroupActive = (items: MenuItemWithGroup[]) =>
+    items.some((item) => isItemActive(item.url));
+
+  const orderedGroups: NavGroupKey[] = ["main", "people", "ministry", "insights", "system"];
 
   return (
     <Sidebar collapsible="icon">
@@ -187,26 +156,68 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.url || pathname?.startsWith(item.url + "/") || (item.url === "/dashboard" && pathname === "/dashboard");
+              {orderedGroups.map((groupKey) => {
+                const items = itemsByGroup.get(groupKey) ?? [];
+                if (items.length === 0) return null;
+
+                const config = navGroupConfig[groupKey];
+                const GroupIcon = config.icon;
+                const hasSubItems = items.length > 1 || (items.length === 1 && groupKey !== "main");
+
+                if (groupKey === "main" && items.length === 1) {
+                  const item = items[0];
+                  const Icon = item.icon;
+                  return (
+                    <SidebarMenuItem key={groupKey}>
+                      <SidebarMenuButton asChild isActive={isItemActive(item.url)} tooltip={item.title}>
+                        <Link href={item.url} className="flex items-center gap-2 w-full" onClick={closeMobileSidebar}>
+                          <Icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                }
+
                 return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                    >
-                      <Link
-                        href={item.url}
-                        className="flex items-center gap-2 w-full"
-                        onClick={closeMobileSidebar}
-                      >
-                        <Icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <Collapsible
+                    key={groupKey}
+                    asChild
+                    defaultOpen={isGroupActive(items)}
+                    className="group/collapsible"
+                  >
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton tooltip={config.label} isActive={isGroupActive(items)}>
+                          <GroupIcon />
+                          <span>{config.label}</span>
+                          <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180 group-data-[collapsible=icon]:hidden" />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {items.map((item) => {
+                            const Icon = item.icon;
+                            const active = isItemActive(item.url);
+                            return (
+                              <SidebarMenuSubItem key={item.url}>
+                                <SidebarMenuSubButton asChild isActive={active}>
+                                  <Link
+                                    href={item.url}
+                                    className="flex items-center gap-2 w-full"
+                                    onClick={closeMobileSidebar}
+                                  >
+                                    <Icon />
+                                    <span>{item.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            );
+                          })}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
                 );
               })}
             </SidebarMenu>
