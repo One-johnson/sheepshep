@@ -1,7 +1,25 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Users, Calendar, FileText, Bell, BarChart3, Shield, Heart, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+
+const container = {
+  hidden: { opacity: 0 },
+  visible: (i = 1) => ({
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.04 * i },
+  }),
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4 },
+  },
+};
 
 const features = [
   {
@@ -64,27 +82,46 @@ const features = [
 
 export function Features() {
   return (
-    <section id="features" className="py-24 px-4 sm:px-6 lg:px-8">
+    <motion.section
+      id="features"
+      className="py-24 px-4 sm:px-6 lg:px-8"
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-64px" }}
+      variants={container}
+    >
       <div className="mx-auto max-w-7xl">
-        <div className="text-center mb-16">
+        <motion.div
+          className="text-center mb-16"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.4 }}
+        >
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50 sm:text-4xl">
             Powerful Features for Church Management
           </h2>
           <p className="mt-4 text-lg text-gray-600 dark:text-gray-400">
             Everything you need to care for and manage your congregation effectively
           </p>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <motion.div
+          className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
+          variants={container}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-48px" }}
+        >
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
-              <Card
-                key={index}
-                className="p-6 hover:shadow-lg transition-shadow duration-300 border-2 hover:border-primary/20"
-              >
+              <motion.div key={index} variants={item}>
+                <Card
+                  className="group p-6 border-2 transition-all duration-300 ease-out hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 hover:scale-[1.02] hover:border-primary/30"
+                >
                 <div className="mb-4">
-                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg ${feature.iconBg} ${feature.iconColor}`}>
+                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg transition-transform duration-300 group-hover:scale-110 ${feature.iconBg} ${feature.iconColor}`}>
                     <Icon className="h-6 w-6" />
                   </div>
                 </div>
@@ -95,10 +132,11 @@ export function Features() {
                   {feature.description}
                 </p>
               </Card>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </div>
-    </section>
+    </motion.section>
   );
 }

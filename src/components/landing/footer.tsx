@@ -1,14 +1,27 @@
 "use client";
 
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { Heart } from "lucide-react";
 import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="border-t bg-background">
+    <motion.footer
+      className="border-t bg-background"
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: "-32px" }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+        <motion.div
+          className="grid grid-cols-1 gap-8 md:grid-cols-4"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.4, staggerChildren: 0.05 }}
+        >
           {/* Brand */}
           <div className="space-y-4">
             <Link href="/" className="inline-block">
@@ -105,10 +118,16 @@ export function Footer() {
               <li>Phone: +233 XX XXX XXXX</li>
             </ul>
           </div>
-        </div>
+        </motion.div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+        <motion.div
+          className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
           <p className="text-sm text-gray-600 dark:text-gray-400 text-center sm:text-left">
             © {new Date().getFullYear()} SheepShep. All rights reserved.
           </p>
@@ -116,8 +135,8 @@ export function Footer() {
             Built with <Heart className="h-4 w-4 text-red-500 fill-red-500" /> by{" "}
             <span className="font-semibold text-primary">FlowRiver Technologies</span>
           </p>
-        </div>
+        </motion.div>
       </div>
-    </footer>
+    </motion.footer>
   );
 }
