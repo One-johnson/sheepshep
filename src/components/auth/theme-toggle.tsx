@@ -13,28 +13,20 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-9 w-9"
-        aria-label="Toggle theme"
-      >
-        <Sun className="h-4 w-4" />
-      </Button>
-    );
-  }
-
+  // Always render the same button structure so server and client match (avoids hydration mismatch).
+  // Icon is the only thing that can differ; use a neutral placeholder until mounted.
   return (
     <Button
       variant="ghost"
       size="icon"
       className="h-9 w-9"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      onClick={() => mounted && setTheme(theme === "dark" ? "light" : "dark")}
       aria-label="Toggle theme"
+      suppressHydrationWarning
     >
-      {theme === "dark" ? (
+      {!mounted ? (
+        <span className="h-4 w-4" aria-hidden />
+      ) : theme === "dark" ? (
         <Sun className="h-4 w-4" />
       ) : (
         <Moon className="h-4 w-4" />

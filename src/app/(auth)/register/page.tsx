@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,10 +15,12 @@ import {
   Phone,
   Loader2,
   MessageCircle,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -40,8 +42,16 @@ import { PasswordToggle } from "@/components/auth/password-toggle";
 import { PasswordStrength } from "@/components/auth/password-strength";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
 import { authScriptures, defaultAuthScripture } from "@/lib/auth-scriptures";
+
+function getLoginRedirectPath(searchParams: URLSearchParams | null): string {
+  if (!searchParams) return "/login";
+  const redirect = searchParams.get("redirect");
+  if (typeof redirect === "string" && redirect.startsWith("/") && !redirect.startsWith("//")) {
+    return `/login?redirect=${encodeURIComponent(redirect)}`;
+  }
+  return "/login";
+}
 
 const passwordRequirements = [
   { text: "At least 8 characters", id: "length" },
@@ -74,11 +84,13 @@ const registerSchema = z
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [showApprovalAlert, setShowApprovalAlert] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [registrationStatus, setRegistrationStatus] = useState<{
@@ -87,6 +99,7 @@ export default function RegisterPage() {
   } | null>(null);
 
   const register = useMutation(api.auth.register);
+  const isFormDisabled = isLoading || isRedirecting;
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     { loop: true, duration: 20 },
@@ -112,6 +125,7 @@ export default function RegisterPage() {
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
+    mode: "onTouched",
     defaultValues: {
       name: "",
       email: "",
@@ -159,7 +173,8 @@ export default function RegisterPage() {
       // Check if this was the first admin (auto-approved)
       if (result.isFirstAdmin) {
         toast.success("First admin account created successfully! You can now log in.");
-        router.push("/login");
+        setIsRedirecting(true);
+        router.push(getLoginRedirectPath(searchParams));
       } else if (result.status === "pending") {
         // Shepherd registration requires approval
         setRegistrationStatus({
@@ -171,17 +186,27 @@ export default function RegisterPage() {
       } else {
         // Direct registration (shouldn't happen for shepherd, but handle it)
         toast.success("Account created successfully!");
-        router.push("/login");
+        setIsRedirecting(true);
+        router.push(getLoginRedirectPath(searchParams));
       }
     } catch (error: unknown) {
+      const data = error instanceof ConvexError ? (error.data as { code?: string; message?: string }) : null;
+      const code = data?.code;
       const message =
-        error instanceof ConvexError &&
-        typeof (error.data as { message?: string })?.message === "string"
-          ? (error.data as { message: string }).message
+        typeof data?.message === "string"
+          ? data.message
           : error instanceof Error
             ? error.message
             : "Failed to register. Please try again.";
-      toast.error(message);
+
+      if (code === "ACCOUNT_LOCKED" || code === "LOCKOUT" || /lockout|locked|too many attempt/i.test(message)) {
+        toast.error("Too many attempts", {
+          description: "Please try again in a few minutes or contact support.",
+          duration: 6000,
+        });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -192,7 +217,12 @@ export default function RegisterPage() {
       <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-12 sm:px-12 lg:px-16 overflow-y-auto">
         <div className="mx-auto w-full max-w-sm space-y-8">
           {/* Scripture Carousel */}
-          <div className="relative overflow-hidden rounded-lg border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+          <motion.div
+            className="relative overflow-hidden rounded-xl border-2 border-primary/20 bg-primary/5 dark:bg-primary/10"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+          >
             <div className="embla" ref={emblaRef}>
               <div className="embla__container flex">
                 {authScriptures.map((scripture, index) => (
@@ -201,10 +231,10 @@ export default function RegisterPage() {
                     className="embla__slide min-w-0 flex-shrink-0 flex-grow-0 basis-full"
                   >
                     <div className="p-4 text-center">
-                      <p className="text-sm italic text-blue-900 dark:text-blue-100 leading-relaxed">
+                      <p className="text-sm italic text-foreground/90 leading-relaxed">
                         &quot;{scripture.verse}&quot;
                       </p>
-                      <p className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                      <p className="mt-2 text-xs font-semibold text-muted-foreground">
                         {scripture.reference}
                       </p>
                     </div>
@@ -219,22 +249,27 @@ export default function RegisterPage() {
                   className={cn(
                     "h-1.5 rounded-full transition-all",
                     index === selectedIndex
-                      ? "w-6 bg-blue-700 dark:bg-blue-300"
-                      : "w-1.5 bg-blue-400/50 dark:bg-blue-600/50"
+                      ? "w-6 bg-primary"
+                      : "w-1.5 bg-primary/40"
                   )}
                   onClick={() => scrollTo(index)}
                   aria-label={`Go to scripture ${index + 1}`}
                 />
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          <div className="space-y-2 text-center lg:text-left">
-            <h2 className="text-3xl font-bold tracking-tight">Create an account</h2>
+          <motion.div
+            className="space-y-2 text-center lg:text-left"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.05 }}
+          >
+            <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
             <p className="text-muted-foreground">
               Register as a shepherd (admin approval required)
             </p>
-          </div>
+          </motion.div>
 
           {/* Approval Alert */}
           {showApprovalAlert && registrationStatus?.status === "pending" && (
@@ -264,10 +299,10 @@ export default function RegisterPage() {
                 </p>
                 <Button
                   variant="outline"
-                  className="w-full mt-4 border-blue-300 dark:border-blue-700"
+                  className="w-full mt-4 rounded-lg border-primary/30"
                   onClick={() => {
                     setShowApprovalAlert(false);
-                    router.push("/login");
+                    router.push(getLoginRedirectPath(searchParams));
                   }}
                 >
                   Go to Login
@@ -279,28 +314,28 @@ export default function RegisterPage() {
           {!showApprovalAlert && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            {...field}
-                            type="text"
-                            placeholder="Enter your full name"
-                            className="pl-10"
-                            disabled={isLoading}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <fieldset className="space-y-6" disabled={isFormDisabled}>
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              {...field}
+                              type="text"
+                              placeholder="Enter your full name"
+                              className="pl-10 rounded-lg"
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                 <FormField
                   control={form.control}
@@ -315,8 +350,7 @@ export default function RegisterPage() {
                             {...field}
                             type="text"
                             placeholder="What should we call you?"
-                            className="pl-10"
-                            disabled={isLoading}
+                            className="pl-10 rounded-lg"
                           />
                         </div>
                       </FormControl>
@@ -338,8 +372,7 @@ export default function RegisterPage() {
                             {...field}
                             type="email"
                             placeholder="Enter your email"
-                            className="pl-10"
-                            disabled={isLoading}
+                            className="pl-10 rounded-lg"
                           />
                         </div>
                       </FormControl>
@@ -361,8 +394,7 @@ export default function RegisterPage() {
                             {...field}
                             type="tel"
                             placeholder="Enter your phone number"
-                            className="pl-10"
-                            disabled={isLoading}
+                            className="pl-10 rounded-lg"
                           />
                         </div>
                       </FormControl>
@@ -384,8 +416,7 @@ export default function RegisterPage() {
                             {...field}
                             type="tel"
                             placeholder="Enter your WhatsApp number"
-                            className="pl-10"
-                            disabled={isLoading}
+                            className="pl-10 rounded-lg"
                           />
                         </div>
                       </FormControl>
@@ -407,8 +438,7 @@ export default function RegisterPage() {
                             {...field}
                             type={showPassword ? "text" : "password"}
                             placeholder="Create a password"
-                            className="pl-10 pr-10"
-                            disabled={isLoading}
+                            className="pl-10 pr-10 rounded-lg"
                           />
                           <PasswordToggle
                             show={showPassword}
@@ -455,8 +485,7 @@ export default function RegisterPage() {
                             {...field}
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder="Confirm your password"
-                            className="pl-10 pr-10"
-                            disabled={isLoading}
+                            className="pl-10 pr-10 rounded-lg"
                           />
                           <PasswordToggle
                             show={showConfirmPassword}
@@ -471,31 +500,62 @@ export default function RegisterPage() {
                   )}
                 />
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    "Create account"
-                  )}
-                </Button>
+                  <Button
+                    type="submit"
+                    className="w-full rounded-lg"
+                    disabled={isFormDisabled}
+                  >
+                    {isRedirecting ? (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Redirecting...
+                      </>
+                    ) : isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating account...
+                      </>
+                    ) : (
+                      "Create account"
+                    )}
+                  </Button>
+                </fieldset>
               </form>
             </Form>
           )}
 
-          <div className="text-center text-sm">
+          <motion.div
+            className="text-center text-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.15 }}
+          >
             <span className="text-muted-foreground">Already have an account? </span>
             <Link
-              href="/login"
-              className="font-medium text-primary hover:underline"
+              href={getLoginRedirectPath(searchParams)}
+              className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
             >
               Sign in
             </Link>
-          </div>
+          </motion.div>
         </div>
       </div>
     </AuthLayout>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthLayout scripture={defaultAuthScripture}>
+          <div className="flex w-full lg:w-1/2 flex-col justify-center items-center px-6 py-8 min-h-[40vh]">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
+          </div>
+        </AuthLayout>
+      }
+    >
+      <RegisterPageContent />
+    </Suspense>
   );
 }

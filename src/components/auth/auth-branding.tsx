@@ -16,9 +16,9 @@ export function AuthBranding({ scripture }: AuthBrandingProps) {
   };
 
   return (
-    <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/20 dark:via-indigo-950/20 dark:to-purple-950/20 p-12 relative overflow-hidden">
-      {/* Decorative background elements */}
-      <div className="absolute inset-0 opacity-10">
+    <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-start pt-16 pb-12 px-12 relative overflow-hidden rounded-r-xl border-l border-border bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30">
+      {/* Decorative blur orbs */}
+      <div className="absolute inset-0 opacity-30 dark:opacity-20">
         <div className="absolute top-20 left-20 w-72 h-72 bg-blue-400 rounded-full blur-3xl" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-400 rounded-full blur-3xl" />
       </div>
@@ -35,23 +35,23 @@ export function AuthBranding({ scripture }: AuthBrandingProps) {
               priority
             />
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-400">
+          <p className="text-lg text-muted-foreground">
             Leading and caring for God&apos;s flock
           </p>
         </div>
 
         {/* Scripture */}
-        <div className="space-y-3 pt-8 border-t border-gray-200 dark:border-gray-800">
-          <p className="text-lg italic text-gray-700 dark:text-gray-300 leading-relaxed">
+        <div className="space-y-3 pt-8 border-t border-border">
+          <p className="text-lg italic text-foreground/90 leading-relaxed">
             &quot;{defaultScripture.verse}&quot;
           </p>
-          <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+          <p className="text-sm font-semibold text-muted-foreground">
             {defaultScripture.reference}
           </p>
         </div>
 
         {/* Additional text */}
-        <p className="text-sm text-gray-500 dark:text-gray-500 pt-4">
+        <p className="text-sm text-muted-foreground pt-4">
           A comprehensive church management system designed to help shepherds, pastors, and administrators
           care for and manage their congregation with love and efficiency.
         </p>
