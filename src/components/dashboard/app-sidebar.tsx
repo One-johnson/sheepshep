@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   UserCheck,
   Bell,
   Settings,
@@ -62,6 +63,13 @@ interface MenuItemWithGroup extends MenuItem {
 const allMenuItems: MenuItemWithGroup[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, group: "main" },
   { title: "Users", url: "/dashboard/users", icon: Users, roles: ["admin"], group: "people" },
+  {
+    title: "Registrations",
+    url: "/dashboard/registrations",
+    icon: UserPlus,
+    roles: ["admin", "pastor"],
+    group: "people",
+  },
   { title: "Regions", url: "/dashboard/regions", icon: MapPin, roles: ["admin"], group: "people" },
   { title: "Shepherds", url: "/dashboard/shepherds", icon: Users, roles: ["admin", "pastor"], group: "people" },
   { title: "Members", url: "/dashboard/members", icon: UserCheck, group: "people" },
