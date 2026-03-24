@@ -22,14 +22,17 @@ export const listRegions = query({
   },
 });
 
-/** For shepherd form: list regions (admin or pastor). */
+/** For member/shepherd forms: list regions (admin, pastor, or shepherd). */
 export const listRegionsForSelect = query({
   args: { token: v.string() },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
     if (!userId) throw new Error("Unauthorized");
     const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "pastor"))
+    if (
+      !user ||
+      (user.role !== "admin" && user.role !== "pastor" && user.role !== "shepherd")
+    )
       throw new Error("Unauthorized");
     return ctx.db.query("regions").order("desc").collect();
   },
@@ -124,14 +127,17 @@ export const listBacentasForSelect = query({
   },
 });
 
-/** For shepherd form: list bacentas in a region (admin or pastor). */
+/** For member/shepherd forms: list bacentas in a region (admin, pastor, or shepherd). */
 export const listBacentasByRegionForSelect = query({
   args: { token: v.string(), regionId: v.id("regions") },
   handler: async (ctx, args) => {
     const userId = await verifyToken(ctx, args.token);
     if (!userId) throw new Error("Unauthorized");
     const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "pastor"))
+    if (
+      !user ||
+      (user.role !== "admin" && user.role !== "pastor" && user.role !== "shepherd")
+    )
       throw new Error("Unauthorized");
     return ctx.db
       .query("bacentas")
