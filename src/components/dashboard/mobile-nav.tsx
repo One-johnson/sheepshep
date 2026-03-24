@@ -8,6 +8,7 @@ import { api } from "../../../convex/_generated/api";
 import {
   Home,
   Users,
+  UserPlus,
   UserCheck,
   ClipboardList,
   CalendarCheck,
@@ -29,6 +30,12 @@ const allNavItems: NavItem[] = [
   { title: "Members", url: "/dashboard/members", icon: UserCheck, roles: ["shepherd"] },
   { title: "Attendance", url: "/dashboard/attendance", icon: CalendarCheck, roles: ["shepherd"] },
   { title: "Users", url: "/dashboard/users", icon: Users, roles: ["admin"] },
+  {
+    title: "Registrations",
+    url: "/dashboard/registrations",
+    icon: UserPlus,
+    roles: ["admin", "pastor"],
+  },
   { title: "Shepherds", url: "/dashboard/shepherds", icon: Users, roles: ["pastor"] },
   { title: "Assignments", url: "/dashboard/assignments", icon: ClipboardList, roles: ["admin", "pastor", "shepherd"] },
   { title: "Events", url: "/dashboard/events", icon: Calendar, roles: ["admin", "pastor", "shepherd"] },

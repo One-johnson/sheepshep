@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import * as bcrypt from "bcryptjs";
 import { internal } from "./_generated/api";
@@ -1093,5 +1093,37 @@ export const updateUserProfile = mutation({
     const updatedUserDoc = updatedUser as any;
     const { passwordHash: _, ...userWithoutPassword } = updatedUserDoc;
     return userWithoutPassword;
+  },
+});
+
+/**
+ * Dev / deployment-owner recovery: set a user's password by email without logging in.
+ * Callable only from Convex CLI or dashboard (internal). Does not send email.
+ *
+ * Example:
+ *   npx convex run auth:setPasswordByEmailDev '{"email":"you@example.com","newPassword":"YourNewPass1!"}' --push
+ */
+export const setPasswordByEmailDev = internalMutation({
+  args: {
+    email: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (args.newPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters");
+    }
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email.trim()))
+      .first();
+    if (!user) {
+      throw new Error("No user with that email");
+    }
+    const passwordHash = bcrypt.hashSync(args.newPassword, 10);
+    await ctx.db.patch(user._id, {
+      passwordHash,
+      updatedAt: Date.now(),
+    });
+    return { success: true, email: user.email };
   },
 });

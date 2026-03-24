@@ -30,8 +30,14 @@ export function ForgotPasswordDialog({
                 your password, please contact your administrator or pastor.
               </p>
               <p className="text-sm text-muted-foreground">
-                They can set a new password for you from the dashboard and share
-                it with you securely.
+                Admins can reset passwords for shepherd and pastor accounts from
+                the dashboard. The first admin cannot be reset from the UI. If
+                you host the app yourself, you can set a user&apos;s password
+                with the Convex CLI mutation{" "}
+                <span className="font-mono text-[0.7rem]">
+                  auth:setPasswordByEmailDev
+                </span>{" "}
+                (see convex/auth.ts).
               </p>
             </div>
           </DialogDescription>

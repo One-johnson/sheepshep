@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Settings,
   User,
+  UserPlus,
   UserCheck,
   Moon,
   Sun,
@@ -63,6 +64,12 @@ export default function MorePage() {
 
   const allMenuItems: MenuItem[] = [
     { title: "Profile", icon: User, onClick: () => router.push("/dashboard/profile") },
+    {
+      title: "Registrations",
+      icon: UserPlus,
+      onClick: () => router.push("/dashboard/registrations"),
+      roles: ["admin", "pastor"],
+    },
     { title: "Members", icon: UserCheck, onClick: () => router.push("/dashboard/members") },
     {
       title: "Assignments",
