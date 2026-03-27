@@ -45,6 +45,7 @@ import { Checkbox as CheckboxComponent } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Users,
+  UserPlus,
   Search,
   Eye,
   Pencil,
@@ -61,6 +62,7 @@ import {
 import { toast } from "sonner";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EditShepherdDialog } from "@/components/dashboard/edit-shepherd-dialog";
+import { AddShepherdDialog } from "@/components/dashboard/add-shepherd-dialog";
 import { ViewUserDialog } from "@/components/dashboard/view-user-dialog";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useAuth } from "@/contexts/auth-context";
@@ -219,6 +221,7 @@ export default function ShepherdsPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [viewDialogOpen, setViewDialogOpen] = React.useState(false);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+  const [addShepherdDialogOpen, setAddShepherdDialogOpen] = React.useState(false);
   const [selectedShepherd, setSelectedShepherd] = React.useState<any>(null);
   const [openRows, setOpenRows] = React.useState<Record<string, boolean>>({});
   const [selectedRows, setSelectedRows] = React.useState<Set<Id<"users">>>(new Set());
@@ -489,6 +492,14 @@ export default function ShepherdsPage() {
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                onClick={() => setAddShepherdDialogOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add Shepherd
+              </Button>
               {selectedRows.size > 0 && (
                 <>
                   <Button
@@ -851,6 +862,11 @@ export default function ShepherdsPage() {
           user={selectedShepherd}
         />
       )}
+
+      <AddShepherdDialog
+        open={addShepherdDialogOpen}
+        onOpenChange={setAddShepherdDialogOpen}
+      />
     </div>
   );
 }

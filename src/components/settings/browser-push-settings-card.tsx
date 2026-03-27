@@ -27,6 +27,33 @@ async function getServiceWorkerRegistration(timeoutMs = SW_READY_TIMEOUT_MS): Pr
     throw new Error("Service worker is not supported in this browser");
   }
 
+  const waitForActivation = (registration: ServiceWorkerRegistration): Promise<ServiceWorkerRegistration> => {
+    if (registration.active) return Promise.resolve(registration);
+
+    const worker = registration.installing ?? registration.waiting;
+    if (!worker) {
+      return Promise.reject(new Error("no_active_service_worker"));
+    }
+
+    return new Promise<ServiceWorkerRegistration>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        reject(new Error("service_worker_timeout"));
+      }, timeoutMs);
+
+      const finish = () => {
+        window.clearTimeout(timer);
+        if (registration.active) resolve(registration);
+        else reject(new Error("no_active_service_worker"));
+      };
+
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "activated") finish();
+      });
+
+      if (worker.state === "activated") finish();
+    });
+  };
+
   const readyWithTimeout = Promise.race<ServiceWorkerRegistration>([
     navigator.serviceWorker.ready,
     new Promise<ServiceWorkerRegistration>((_, reject) =>
@@ -39,8 +66,10 @@ async function getServiceWorkerRegistration(timeoutMs = SW_READY_TIMEOUT_MS): Pr
   } catch {
     // Fallback path for mobile clients where ready can hang.
     const existing = await navigator.serviceWorker.getRegistration();
-    if (existing) return existing;
-    return navigator.serviceWorker.register("/sw.js");
+    if (existing) return waitForActivation(existing);
+
+    const registered = await navigator.serviceWorker.register("/sw.js");
+    return waitForActivation(registered);
   }
 }
 
@@ -148,9 +177,11 @@ export function BrowserPushSettingsCard(): React.JSX.Element | null {
       const message =
         e instanceof Error && e.message === "service_worker_timeout"
           ? "Timed out waiting for service worker. Reopen the app and try again."
-          : e instanceof Error
-            ? e.message
-            : "Could not enable push notifications";
+          : e instanceof Error && e.message === "no_active_service_worker"
+            ? "Service worker is still starting. Wait a few seconds and try again."
+            : e instanceof Error
+              ? e.message
+              : "Could not enable push notifications";
       toast.error(message);
     } finally {
       setBusy(false);
