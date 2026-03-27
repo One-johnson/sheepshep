@@ -895,7 +895,7 @@ export default function MembersPage() {
               )}
             </>
           )}
-          {(isAdmin || isShepherd) && (
+          {(isAdmin || isPastor || isShepherd) && (
             <Button onClick={() => setAddMemberDialogOpen(true)} className="w-full sm:w-auto">
               <UserPlus className="mr-2 h-4 w-4" />
               Add Member

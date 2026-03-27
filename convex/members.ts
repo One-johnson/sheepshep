@@ -103,9 +103,9 @@ export const create = mutation({
       throw new Error("User not found");
     }
 
-    // Check permissions - shepherds can create members, admins can create anyone
-    if (user.role !== "admin" && user.role !== "shepherd") {
-      throw new Error("Unauthorized - only shepherds and admins can create members");
+    // Check permissions - pastors, shepherds, and admins can create members
+    if (user.role !== "admin" && user.role !== "shepherd" && user.role !== "pastor") {
+      throw new Error("Unauthorized - only pastors, shepherds, and admins can create members");
     }
 
     // If shepherd, ensure they're assigning to themselves or check permissions
