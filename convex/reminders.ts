@@ -1,6 +1,7 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { scheduleWebPushDelivery } from "./notificationHelpers";
 
 // Helper function to create notification from reminder
 async function sendReminderNotification(ctx: any, reminder: any) {
@@ -14,6 +15,7 @@ async function sendReminderNotification(ctx: any, reminder: any) {
     isRead: false,
     createdAt: Date.now(),
   });
+  await scheduleWebPushDelivery(ctx, reminder.userId, reminder.title, reminder.message);
 
   // Mark reminder as sent
   await ctx.db.patch(reminder._id, {

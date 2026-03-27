@@ -3,7 +3,7 @@ import { v, ConvexError } from "convex/values";
 import * as bcrypt from "bcryptjs";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { createNotification, notifyAdmins } from "./notificationHelpers";
+import { createNotification, notifyAdmins, scheduleWebPushDelivery } from "./notificationHelpers";
 
 // Generate session token without crypto (using Math.random)
 function generateSessionToken(): string {
@@ -236,6 +236,12 @@ export const register = mutation({
             isRead: false,
             createdAt: Date.now(),
           });
+          await scheduleWebPushDelivery(
+            ctx,
+            admin._id,
+            "New Shepherd Registration Request",
+            `${args.name} (${args.email}) has requested to register as a shepherd`
+          );
         }
       }
 
@@ -251,6 +257,12 @@ export const register = mutation({
             isRead: false,
             createdAt: Date.now(),
           });
+          await scheduleWebPushDelivery(
+            ctx,
+            pastor._id,
+            "New Shepherd Registration Request",
+            `${args.name} (${args.email}) has requested to register as a shepherd`
+          );
         }
       }
 

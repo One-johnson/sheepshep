@@ -1,28 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
-
-// Helper function to create notification
-async function createNotification(
-  ctx: any,
-  userId: string,
-  type: string,
-  title: string,
-  message: string,
-  relatedId?: string,
-  relatedType?: string
-) {
-  await ctx.db.insert("notifications", {
-    userId: userId as any,
-    type: type as any,
-    title,
-    message,
-    relatedId,
-    relatedType: relatedType as any,
-    isRead: false,
-    createdAt: Date.now(),
-  });
-}
+import { createNotification } from "./notificationHelpers";
 
 // Create prayer request (shepherd only)
 export const create = mutation({
