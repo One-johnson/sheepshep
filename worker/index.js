@@ -5,6 +5,7 @@ self.addEventListener("push", function (event) {
   var title = "SheepShep";
   var body = "";
   var url = "/dashboard/notifications";
+  var now = Date.now();
   try {
     if (event.data) {
       var json = event.data.json();
@@ -24,7 +25,10 @@ self.addEventListener("push", function (event) {
       badge: "/icons/icon-192x192.png",
       tag: "sheepshep-notification",
       renotify: true,
-      data: { url: url },
+      timestamp: now,
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
+      data: { url: url, receivedAt: now },
     })
   );
 });
@@ -38,10 +42,15 @@ self.addEventListener("notificationclick", function (event) {
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
-        if ("focus" in client) {
-          return client.focus().then(function () {
-            return undefined;
-          });
+        if ("focus" in client && "navigate" in client) {
+          return client
+            .navigate(fullUrl)
+            .catch(function () {
+              return client;
+            })
+            .then(function () {
+              return client.focus();
+            });
         }
       }
       if (clients.openWindow) {
