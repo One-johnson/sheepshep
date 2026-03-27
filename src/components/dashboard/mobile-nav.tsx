@@ -65,17 +65,15 @@ export function MobileNav() {
             <Link
               key={item.title}
               href={item.url}
+              aria-label={item.title}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 px-2 py-2 text-xs transition-colors rounded-full mx-1",
+                "flex flex-1 items-center justify-center px-2 py-3 transition-colors rounded-full mx-1",
                 isActive
                   ? "text-primary bg-primary/15"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
-              <span className={cn("text-[10px]", isActive && "font-medium")}>
-                {item.title}
-              </span>
+              <Icon className={cn("h-6 w-6 shrink-0", isActive && "text-primary")} aria-hidden />
             </Link>
           );
         })}

@@ -1,4 +1,20 @@
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+
+/** Schedule a web push for this user (no-op at runtime if VAPID is not configured). */
+export async function scheduleWebPushDelivery(
+  ctx: any,
+  userId: Id<"users">,
+  title: string,
+  body: string
+): Promise<void> {
+  const safeBody = body.length > 2000 ? `${body.slice(0, 1997)}...` : body;
+  await ctx.scheduler.runAfter(0, internal.pushActions.deliverWebPush, {
+    userId,
+    title: title.slice(0, 120),
+    body: safeBody,
+  });
+}
 
 // Helper function to create notification
 export async function createNotification(
@@ -58,6 +74,7 @@ export async function createNotification(
     isRead: false,
     createdAt: Date.now(),
   });
+  await scheduleWebPushDelivery(ctx, userId, title, message);
 }
 
 // Helper to notify multiple users

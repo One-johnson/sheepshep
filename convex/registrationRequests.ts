@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { verifyToken } from "./auth";
+import { scheduleWebPushDelivery } from "./notificationHelpers";
 import * as bcrypt from "bcryptjs";
 
 // List registration requests (admin or pastor)
@@ -127,6 +128,12 @@ export const approve = mutation({
         isRead: false,
         createdAt: Date.now(),
       });
+      await scheduleWebPushDelivery(
+        ctx,
+        request.requestedBy,
+        "Registration Approved",
+        `Your shepherd registration for ${request.name} has been approved`
+      );
     }
 
     return { userId: newUserId, success: true };
@@ -186,6 +193,12 @@ export const reject = mutation({
         isRead: false,
         createdAt: Date.now(),
       });
+      await scheduleWebPushDelivery(
+        ctx,
+        request.requestedBy,
+        "Registration Rejected",
+        `Your shepherd registration has been rejected: ${args.rejectionReason}`
+      );
     }
 
     return { success: true };

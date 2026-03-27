@@ -445,6 +445,20 @@ export default defineSchema({
     .index("by_user_unread", ["userId", "isRead"])
     .index("by_created_at", ["createdAt"]),
 
+  // Web Push subscriptions (one row per browser/device endpoint)
+  pushSubscriptions: defineTable({
+    userId: v.id("users"),
+    endpoint: v.string(),
+    keys: v.object({
+      p256dh: v.string(),
+      auth: v.string(),
+    }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_endpoint", ["endpoint"]),
+
   // Groups - bacenta, bible study, etc.
   groups: defineTable({
     name: v.string(),

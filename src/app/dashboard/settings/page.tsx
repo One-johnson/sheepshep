@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog";
+import { BrowserPushSettingsCard } from "@/components/settings/browser-push-settings-card";
 import { useAuth } from "@/contexts/auth-context";
 
 const settingsSchema = z.object({
@@ -737,6 +738,8 @@ export default function SettingsPage() {
                   />
                 </CardContent>
               </Card>
+
+              <BrowserPushSettingsCard />
 
               <Card>
                 <CardHeader className="pb-3 sm:pb-6">
