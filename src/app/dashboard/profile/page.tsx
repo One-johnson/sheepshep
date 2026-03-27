@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EditProfileDialog } from "@/components/dashboard/edit-profile-dialog";
+import { BrowserPushSettingsCard } from "@/components/settings/browser-push-settings-card";
 import { useAuth } from "@/contexts/auth-context";
 
 function formatDate(timestamp: number): string {
@@ -305,6 +306,9 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Device push controls for all signed-in roles */}
+      <BrowserPushSettingsCard />
 
       {/* Actions */}
       <div className="flex gap-2">

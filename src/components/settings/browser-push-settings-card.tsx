@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Bell, Loader2 } from "lucide-react";
 
+const SW_READY_TIMEOUT_MS = 10_000;
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -18,6 +20,28 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
+}
+
+async function getServiceWorkerRegistration(timeoutMs = SW_READY_TIMEOUT_MS): Promise<ServiceWorkerRegistration> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    throw new Error("Service worker is not supported in this browser");
+  }
+
+  const readyWithTimeout = Promise.race<ServiceWorkerRegistration>([
+    navigator.serviceWorker.ready,
+    new Promise<ServiceWorkerRegistration>((_, reject) =>
+      window.setTimeout(() => reject(new Error("service_worker_timeout")), timeoutMs)
+    ),
+  ]);
+
+  try {
+    return await readyWithTimeout;
+  } catch {
+    // Fallback path for mobile clients where ready can hang.
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) return existing;
+    return navigator.serviceWorker.register("/sw.js");
+  }
 }
 
 export function BrowserPushSettingsCard(): React.JSX.Element | null {
@@ -37,10 +61,12 @@ export function BrowserPushSettingsCard(): React.JSX.Element | null {
   React.useEffect(() => {
     if (!supported) return;
     let cancelled = false;
-    navigator.serviceWorker.ready.then((reg) => {
+    void getServiceWorkerRegistration().then((reg) => {
       reg.pushManager.getSubscription().then((sub) => {
         if (!cancelled) setBrowserSubscribed(!!sub);
       });
+    }).catch(() => {
+      if (!cancelled) setBrowserSubscribed(false);
     });
     return () => {
       cancelled = true;
@@ -97,7 +123,7 @@ export function BrowserPushSettingsCard(): React.JSX.Element | null {
         toast.error("Notification permission was not granted");
         return;
       }
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await getServiceWorkerRegistration();
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
         sub = await reg.pushManager.subscribe({
@@ -119,7 +145,13 @@ export function BrowserPushSettingsCard(): React.JSX.Element | null {
       setBrowserSubscribed(true);
       toast.success("Push notifications enabled on this device");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not enable push notifications");
+      const message =
+        e instanceof Error && e.message === "service_worker_timeout"
+          ? "Timed out waiting for service worker. Reopen the app and try again."
+          : e instanceof Error
+            ? e.message
+            : "Could not enable push notifications";
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -129,7 +161,7 @@ export function BrowserPushSettingsCard(): React.JSX.Element | null {
     if (!token) return;
     setBusy(true);
     try {
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await getServiceWorkerRegistration();
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
         await unregisterSubscription({ token, endpoint: sub.endpoint });
